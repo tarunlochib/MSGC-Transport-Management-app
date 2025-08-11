@@ -12,6 +12,18 @@
       "dest": "/api/$1"
     },
     {
+      "src": "/assets/(.*)",
+      "dest": "/assets/$1"
+    },
+    {
+      "src": "/MSGC.png",
+      "dest": "/MSGC.png"
+    },
+    {
+      "src": "/MSGC_Transparent.png",
+      "dest": "/MSGC_Transparent.png"
+    },
+    {
       "src": "/(.*)",
       "dest": "/index.html"
     }
