@@ -43,24 +43,6 @@ export const AuthProvider = ({ children }) => {
     checkAuth();
   }, [token]);
 
-  const signup = async (userData) => {
-    try {
-      const response = await api.post('/auth/signup', userData);
-      const { user, token } = response.data;
-      
-      setUser(user);
-      setToken(token);
-      localStorage.setItem('token', token);
-      
-      return { success: true };
-    } catch (error) {
-      return { 
-        success: false, 
-        error: error.response?.data?.error || 'Sign up failed' 
-      };
-    }
-  };
-
   const signin = async (credentials) => {
     try {
       const response = await api.post('/auth/signin', credentials);
@@ -90,7 +72,6 @@ export const AuthProvider = ({ children }) => {
     user,
     token,
     loading,
-    signup,
     signin,
     logout,
     isAuthenticated: !!user

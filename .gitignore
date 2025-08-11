@@ -84,3 +84,4 @@ jspm_packages/
 
 # Prisma
 server/prisma/migrations/ 
+.vercel

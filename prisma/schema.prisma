@@ -1,0 +1,201 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   @default("user")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Customer {
+  id                String    @id @default(cuid())
+  name              String
+  address           String
+  gstNumber         String    @unique
+  phone             String?
+  email             String?
+  contactPerson     String?
+  alternatePhone    String?
+  customerType      String    @default("Regular")
+  creditLimit       Float?
+  paymentTerms      String?
+  status            String    @default("Active")
+  notes             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  consigneeBookings Booking[] @relation("ConsigneeBookings")
+  consignorBookings Booking[] @relation("ConsignorBookings")
+
+  @@map("customers")
+}
+
+model Transporter {
+  id             String    @id @default(cuid())
+  name           String
+  address        String?
+  phone          String?
+  commissionRate Float
+  contactInfo    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  bookings       Booking[]
+  vehicles       Vehicle[]
+
+  @@map("transporters")
+}
+
+model Vehicle {
+  id                 String       @id @default(cuid())
+  vehicleNumber      String       @unique
+  make               String?
+  model              String?
+  registrationNumber String?
+  driverName         String?
+  status             String       @default("Active")
+  capacity           Float?
+  year               Int?
+  fuelType           String       @default("Diesel")
+  insuranceExpiry    DateTime?
+  permitExpiry       DateTime?
+  fitnessExpiry      DateTime?
+  pucExpiry          DateTime?
+  notes              String?
+  isOwned            Boolean      @default(true)
+  transporterId      String?
+  driverId           String?      @unique
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @default(now())
+  bookings           Booking[]
+  driver             Driver?      @relation(fields: [driverId], references: [id])
+  expenses           Expense[]
+  transporter        Transporter? @relation(fields: [transporterId], references: [id])
+
+  @@map("vehicles")
+}
+
+model Driver {
+  id                String    @id @default(cuid())
+  name              String
+  phone             String
+  email             String?
+  address           String?
+  licenseNumber     String    @unique
+  licenseExpiry     DateTime?
+  permitExpiry      DateTime?
+  medicalExpiry     DateTime?
+  status            String    @default("Active")
+  experience        Int?
+  salary            Float?
+  emergencyContact  String?
+  notes             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @default(now())
+  bookings          Booking[]
+  vehicle           Vehicle?
+
+  @@map("drivers")
+}
+
+model Booking {
+  id                    String    @id @default(cuid())
+  grNumber              String    @unique
+  bookingDate           DateTime
+  consignorName         String
+  consignorAddress      String?
+  consignorGST          String?
+  consigneeName         String
+  consigneeAddress      String?
+  consigneeGST          String?
+  fromLocation          String
+  toLocation            String
+  weightKg              Float?
+  totalWeight           Float?
+  ewayBill              String?
+  privateMarka          String?
+  paymentMethod         String
+  totalAmount           Float?
+  paidAmount            Float?
+  deliveryAgainst       String?
+  freightCharges        Float?
+  localCartageCharges   Float?
+  doorDeliveryCharges   Float?
+  stationaryCharges     Float?
+  labourCharges         Float?
+  otherCharges          Float?
+  totalCharges          Float?
+  status                String    @default("Pending")
+  notes                 String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @default(now())
+  transporterId         String?
+  vehicleId             String?
+  driverId              String?
+  consignorId           String?
+  consigneeId           String?
+  transporter           Transporter? @relation(fields: [transporterId], references: [id])
+  vehicle               Vehicle? @relation(fields: [vehicleId], references: [id])
+  driver                Driver? @relation(fields: [driverId], references: [id])
+  consignor             Customer? @relation("ConsignorBookings", fields: [consignorId], references: [id])
+  consignee             Customer? @relation("ConsigneeBookings", fields: [consigneeId], references: [id])
+  packages              Package[]
+  invoices              Invoice[]
+
+  @@map("bookings")
+}
+
+model Package {
+  id          String   @id @default(cuid())
+  description String
+  weight      Float
+  quantity    Int      @default(1)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
+  bookingId   String
+  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@map("packages")
+}
+
+model Invoice {
+  id          String   @id @default(cuid())
+  invoiceNumber String @unique
+  amount      Float
+  dueDate     DateTime?
+  status      String   @default("Pending")
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
+  bookingId   String
+  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@map("invoices")
+}
+
+model Expense {
+  id             String   @id @default(cuid())
+  date           DateTime
+  description    String
+  amount         Float
+  category       String
+  vehicleId      String?
+  notes          String?
+  receiptNumber  String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @default(now())
+  vehicle        Vehicle? @relation(fields: [vehicleId], references: [id])
+
+  @@map("expenses")
+}
