@@ -1,22 +1,5 @@
 {
   "version": 2,
-  "functions": {
-    "api/hello.js": {
-      "runtime": "nodejs18.x"
-    },
-    "api/test.js": {
-      "runtime": "nodejs18.x"
-    },
-    "api/auth/signin.js": {
-      "runtime": "nodejs18.x"
-    },
-    "api/auth/me.js": {
-      "runtime": "nodejs18.x"
-    },
-    "api/health.js": {
-      "runtime": "nodejs18.x"
-    }
-  },
   "builds": [
     {
       "src": "package.json",
@@ -24,6 +7,10 @@
       "config": {
         "distDir": "client/dist"
       }
+    },
+    {
+      "src": "api/**/*.js",
+      "use": "@vercel/node"
     }
   ],
   "routes": [
