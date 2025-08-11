@@ -11,6 +11,7 @@
     "dev:client": "cd client && npm run dev",
     "dev:server": "cd server && npm run dev",
     "build": "cd client && npm run build",
+    "vercel-build": "npx prisma generate && cd client && npm run build",
     "deploy": "cd client && npm run build && vercel --prod",
     "db:generate": "npx prisma generate",
     "db:push": "npx prisma db push",
