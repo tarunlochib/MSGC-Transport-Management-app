@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brand Color Extractor</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .logo-section {
+            margin-bottom: 20px;
+        }
+        .logo-section img {
+            max-width: 300px;
+            height: auto;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+        }
+        .color-palette {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .color-swatch {
+            width: 60px;
+            height: 60px;
+            border-radius: 8px;
+            border: 2px solid #ddd;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: white;
+            text-shadow: 1px 1px 1px rgba(0,0,0,0.5);
+            cursor: pointer;
+        }
+        .instructions {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .color-code {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Brand Color Extractor</h1>
+        
+        <div class="instructions">
+            <h3>Instructions:</h3>
+            <ol>
+                <li>Click on the logo image below</li>
+                <li>Click on different parts of the logo to extract colors</li>
+                <li>The extracted colors will appear below</li>
+                <li>Copy the color codes for use in your app design</li>
+            </ol>
+        </div>
+
+        <div class="logo-section">
+            <h3>MSGC Logo</h3>
+            <canvas id="logoCanvas" width="300" height="200" style="border: 2px solid #ddd; border-radius: 8px; cursor: crosshair;"></canvas>
+            <p><small>Click on the logo to extract colors</small></p>
+        </div>
+
+        <div class="extracted-colors">
+            <h3>Extracted Brand Colors:</h3>
+            <div class="color-palette" id="colorPalette"></div>
+            <div class="color-code" id="colorCodes"></div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('logoCanvas');
+        const ctx = canvas.getContext('2d');
+        const colorPalette = document.getElementById('colorPalette');
+        const colorCodes = document.getElementById('colorCodes');
+        
+        const extractedColors = new Set();
+
+        // Load the logo image
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = function() {
+            // Calculate aspect ratio to fit in canvas
+            const aspectRatio = img.width / img.height;
+            const canvasWidth = 300;
+            const canvasHeight = canvasWidth / aspectRatio;
+            
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+            
+            // Draw the image
+            ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
+        };
+        
+        // Try to load both logo versions
+        img.src = './client/public/MSGC.png';
+        img.onerror = function() {
+            img.src = './client/public/MSGC_Transparent.png';
+        };
+
+        canvas.addEventListener('click', function(e) {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            const pixel = ctx.getImageData(x, y, 1, 1).data;
+            const color = `rgb(${pixel[0]}, ${pixel[1]}, ${pixel[2]})`;
+            const hexColor = rgbToHex(pixel[0], pixel[1], pixel[2]);
+            
+            if (!extractedColors.has(hexColor)) {
+                extractedColors.add(hexColor);
+                addColorSwatch(hexColor, color);
+                updateColorCodes();
+            }
+        });
+
+        function rgbToHex(r, g, b) {
+            return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+        }
+
+        function addColorSwatch(hex, rgb) {
+            const swatch = document.createElement('div');
+            swatch.className = 'color-swatch';
+            swatch.style.backgroundColor = hex;
+            swatch.textContent = hex;
+            swatch.title = `${hex} (${rgb})`;
+            colorPalette.appendChild(swatch);
+        }
+
+        function updateColorCodes() {
+            const colors = Array.from(extractedColors);
+            colorCodes.innerHTML = `
+                <strong>CSS Variables:</strong><br>
+                :root {<br>
+                ${colors.map((color, index) => `  --brand-color-${index + 1}: ${color};`).join('<br>')}<br>
+                }<br><br>
+                <strong>Color Array:</strong><br>
+                ${JSON.stringify(colors, null, 2)}
+            `;
+        }
+    </script>
+</body>
+</html> 
