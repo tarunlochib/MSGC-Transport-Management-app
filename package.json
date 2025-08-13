@@ -13,6 +13,7 @@
     "build": "cd client && npm run build",
     "build:render": "npm install && cd client && npm install && npm run build",
     "start": "cd server && npm start",
+    "start:render": "chmod +x start.sh && ./start.sh",
     "postinstall": "npm run build",
     "db:generate": "npx prisma generate",
     "db:push": "npx prisma db push",
