@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const { PrismaClient } = require('@prisma/client');
+const fs = require('fs'); // Added fs module for file existence checks
 
 const app = express();
 const prisma = new PrismaClient();
@@ -64,32 +65,47 @@ app.get('/api/health', async (req, res) => {
 
 // Serve static files from the React app build
 if (process.env.NODE_ENV === 'production') {
-  // Try multiple possible paths for the dist folder
+  // Try multiple possible paths for the dist folder, prioritizing root level
   const possiblePaths = [
-    path.join(__dirname, '../client/dist'),
-    path.join(__dirname, '../../client/dist'),
-    path.join(__dirname, '../../../client/dist'),
-    path.join(__dirname, 'client/dist'),
-    path.join(__dirname, '../dist'),
-    path.join(__dirname, '../dist-root'),
-    path.join(__dirname, '../../dist-root'),
-    path.join(__dirname, '../../../dist-root')
+    path.join(__dirname, '../dist'),           // Root level dist (priority 1)
+    path.join(__dirname, '../../dist'),        // Root level dist (priority 2)
+    path.join(__dirname, '../../../dist'),     // Root level dist (priority 3)
+    path.join(__dirname, '../client/dist'),    // Client dist (fallback)
+    path.join(__dirname, '../../client/dist'), // Client dist (fallback)
+    path.join(__dirname, '../../../client/dist'), // Client dist (fallback)
+    path.join(__dirname, 'client/dist'),      // Server-relative client dist
+    path.join(__dirname, '../dist-root'),     // Backup dist-root
+    path.join(__dirname, '../../dist-root')   // Backup dist-root
   ];
   
   let staticPath = null;
+  console.log('🔍 Searching for static files...');
+  
   for (const testPath of possiblePaths) {
     try {
-      if (require('fs').existsSync(path.join(testPath, 'index.html'))) {
-        staticPath = testPath;
-        console.log(`✅ Found static files at: ${staticPath}`);
-        break;
+      const fullPath = path.resolve(testPath);
+      console.log(`🔍 Checking: ${testPath} -> ${fullPath}`);
+      
+      if (fs.existsSync(fullPath)) {
+        console.log(`✅ Path exists: ${fullPath}`);
+        
+        if (fs.existsSync(path.join(fullPath, 'index.html'))) {
+          staticPath = fullPath;
+          console.log(`🎯 Found static files at: ${staticPath}`);
+          break;
+        } else {
+          console.log(`⚠️ Path exists but no index.html: ${fullPath}`);
+        }
+      } else {
+        console.log(`❌ Path not found: ${fullPath}`);
       }
     } catch (error) {
-      console.log(`❌ Path not found: ${testPath}`);
+      console.log(`❌ Error checking ${testPath}:`, error.message);
     }
   }
   
   if (staticPath) {
+    console.log(`🚀 Serving static files from: ${staticPath}`);
     // Serve static files from the React build
     app.use(express.static(staticPath));
     
@@ -105,7 +121,8 @@ if (process.env.NODE_ENV === 'production') {
         message: 'API is running, but frontend files not found',
         searchedPaths: possiblePaths,
         currentDir: __dirname,
-        workingDir: process.cwd()
+        workingDir: process.cwd(),
+        note: 'Check build logs to see where dist folder was created'
       });
     });
   }
