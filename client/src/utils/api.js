@@ -25,47 +25,90 @@ api.interceptors.request.use(
 
 // Response interceptor for handling errors
 api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      // Handle unauthorized access
-      localStorage.removeItem('token');
-      window.location.href = '/login';
+  (response) => {
+    // Validate response data structure
+    if (response.data && typeof response.data === 'object') {
+      return response;
+    } else {
+      // If response data is not an object, reject with an error
+      return Promise.reject(new Error('Invalid response format from server'));
     }
+  },
+  (error) => {
+    // Handle unauthorized access
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      // Don't redirect automatically, let the component handle it
+      console.warn('Unauthorized access detected');
+    }
+    
+    // Ensure error has a proper structure
+    if (!error.response) {
+      error.response = {
+        data: { error: 'Network error occurred' },
+        status: 0
+      };
+    }
+    
     return Promise.reject(error);
   }
 );
 
-// Generic CRUD operations
+// Generic CRUD operations with better error handling
 export const apiService = {
   // GET request with pagination and filters
   get: async (endpoint, params = {}) => {
-    const response = await api.get(endpoint, { params });
-    return response.data;
+    try {
+      const response = await api.get(endpoint, { params });
+      return response.data;
+    } catch (error) {
+      console.error(`GET ${endpoint} error:`, error);
+      throw error;
+    }
   },
 
   // POST request
   post: async (endpoint, data = {}) => {
-    const response = await api.post(endpoint, data);
-    return response.data;
+    try {
+      const response = await api.post(endpoint, data);
+      return response.data;
+    } catch (error) {
+      console.error(`POST ${endpoint} error:`, error);
+      throw error;
+    }
   },
 
   // PUT request
   put: async (endpoint, data = {}) => {
-    const response = await api.put(endpoint, data);
-    return response.data;
+    try {
+      const response = await api.put(endpoint, data);
+      return response.data;
+    } catch (error) {
+      console.error(`PUT ${endpoint} error:`, error);
+      throw error;
+    }
   },
 
   // DELETE request
   delete: async (endpoint) => {
-    const response = await api.delete(endpoint);
-    return response.data;
+    try {
+      const response = await api.delete(endpoint);
+      return response.data;
+    } catch (error) {
+      console.error(`DELETE ${endpoint} error:`, error);
+      throw error;
+    }
   },
 
   // PATCH request
   patch: async (endpoint, data = {}) => {
-    const response = await api.patch(endpoint, data);
-    return response.data;
+    try {
+      const response = await api.patch(endpoint, data);
+      return response.data;
+    } catch (error) {
+      console.error(`PATCH ${endpoint} error:`, error);
+      throw error;
+    }
   },
 };
 

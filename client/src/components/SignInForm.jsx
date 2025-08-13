@@ -52,11 +52,25 @@ const SignInForm = () => {
     if (!validateForm()) return;
 
     setIsLoading(true);
-    const result = await signin(formData);
-    setIsLoading(false);
-
-    if (!result.success) {
-      setErrors({ general: result.error });
+    setErrors({}); // Clear previous errors
+    
+    try {
+      const result = await signin(formData);
+      
+      if (!result || typeof result !== 'object') {
+        setErrors({ general: 'Unexpected response from server' });
+        return;
+      }
+      
+      if (!result.success) {
+        const errorMessage = result.error || 'Sign in failed';
+        setErrors({ general: errorMessage });
+      }
+    } catch (error) {
+      console.error('Signin error:', error);
+      setErrors({ general: 'An unexpected error occurred. Please try again.' });
+    } finally {
+      setIsLoading(false);
     }
   };
 

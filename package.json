@@ -1,18 +1,18 @@
 {
   "name": "msgc-transport-management-app",
   "version": "1.0.0",
-  "description": "MSGC Transport Management Application with Vercel API",
-  "main": "index.js",
+  "description": "MSGC Transport Management Application",
+  "main": "server/index.js",
   "engines": {
-    "node": "22.x"
+    "node": ">=18.0.0"
   },
   "scripts": {
     "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
     "dev:client": "cd client && npm run dev",
     "dev:server": "cd server && npm run dev",
     "build": "cd client && npm run build",
-    "vercel-build": "npx prisma generate && cd client && npm run build",
-    "deploy": "cd client && npm run build && vercel --prod",
+    "start": "cd server && npm start",
+    "postinstall": "npm run build",
     "db:generate": "npx prisma generate",
     "db:push": "npx prisma db push",
     "db:migrate": "npx prisma migrate dev",
@@ -22,7 +22,7 @@
   "keywords": [
     "transport",
     "management",
-    "vercel",
+    "railway",
     "api",
     "react",
     "prisma"

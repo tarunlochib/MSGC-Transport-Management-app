@@ -31,10 +31,19 @@ export const AuthProvider = ({ children }) => {
       if (token) {
         try {
           const response = await api.get('/auth/me');
-          setUser(response.data.user);
+          // Ensure we have valid user data before setting it
+          if (response.data && response.data.user && typeof response.data.user === 'object') {
+            setUser(response.data.user);
+          } else {
+            console.error('Invalid user data received:', response.data);
+            logout();
+          }
         } catch (error) {
           console.error('Auth check failed:', error);
-          logout();
+          // Only logout if it's an authentication error, not a network error
+          if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+            logout();
+          }
         }
       }
       setLoading(false);
@@ -46,7 +55,18 @@ export const AuthProvider = ({ children }) => {
   const signin = async (credentials) => {
     try {
       const response = await api.post('/auth/signin', credentials);
+      
+      // Validate the response structure
+      if (!response.data || typeof response.data !== 'object') {
+        throw new Error('Invalid response format from server');
+      }
+      
       const { user, token } = response.data;
+      
+      // Validate user and token data
+      if (!user || typeof user !== 'object' || !token || typeof token !== 'string') {
+        throw new Error('Invalid user or token data received');
+      }
       
       setUser(user);
       setToken(token);
@@ -54,9 +74,31 @@ export const AuthProvider = ({ children }) => {
       
       return { success: true };
     } catch (error) {
+      console.error('Signin error:', error);
+      
+      // Handle different types of errors
+      let errorMessage = 'Sign in failed';
+      
+      if (error.response) {
+        // Server responded with error
+        if (error.response.data && error.response.data.error) {
+          errorMessage = error.response.data.error;
+        } else if (error.response.status === 400) {
+          errorMessage = 'Invalid credentials';
+        } else if (error.response.status === 500) {
+          errorMessage = 'Server error. Please try again later.';
+        }
+      } else if (error.request) {
+        // Network error
+        errorMessage = 'Network error. Please check your connection.';
+      } else if (error.message) {
+        // Other error
+        errorMessage = error.message;
+      }
+      
       return { 
         success: false, 
-        error: error.response?.data?.error || 'Sign in failed' 
+        error: errorMessage
       };
     }
   };
@@ -74,7 +116,7 @@ export const AuthProvider = ({ children }) => {
     loading,
     signin,
     logout,
-    isAuthenticated: !!user
+    isAuthenticated: !!user && typeof user === 'object'
   };
 
   return (
