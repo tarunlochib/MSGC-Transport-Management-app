@@ -70,7 +70,10 @@ if (process.env.NODE_ENV === 'production') {
     path.join(__dirname, '../../client/dist'),
     path.join(__dirname, '../../../client/dist'),
     path.join(__dirname, 'client/dist'),
-    path.join(__dirname, '../dist')
+    path.join(__dirname, '../dist'),
+    path.join(__dirname, '../dist-root'),
+    path.join(__dirname, '../../dist-root'),
+    path.join(__dirname, '../../../dist-root')
   ];
   
   let staticPath = null;
@@ -96,8 +99,14 @@ if (process.env.NODE_ENV === 'production') {
     });
   } else {
     console.log('⚠️ No static files found, serving API only');
+    console.log('🔍 Searched paths:', possiblePaths);
     app.get('*', (req, res) => {
-      res.json({ message: 'API is running, but frontend files not found' });
+      res.json({ 
+        message: 'API is running, but frontend files not found',
+        searchedPaths: possiblePaths,
+        currentDir: __dirname,
+        workingDir: process.cwd()
+      });
     });
   }
 }
