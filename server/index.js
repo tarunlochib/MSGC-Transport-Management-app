@@ -64,13 +64,42 @@ app.get('/api/health', async (req, res) => {
 
 // Serve static files from the React app build
 if (process.env.NODE_ENV === 'production') {
-  // Serve static files from the React build
-  app.use(express.static(path.join(__dirname, '../client/dist')));
+  // Try multiple possible paths for the dist folder
+  const possiblePaths = [
+    path.join(__dirname, '../client/dist'),
+    path.join(__dirname, '../../client/dist'),
+    path.join(__dirname, '../../../client/dist'),
+    path.join(__dirname, 'client/dist'),
+    path.join(__dirname, '../dist')
+  ];
   
-  // Handle React routing, return all requests to React app
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../client/dist', 'index.html'));
-  });
+  let staticPath = null;
+  for (const testPath of possiblePaths) {
+    try {
+      if (require('fs').existsSync(path.join(testPath, 'index.html'))) {
+        staticPath = testPath;
+        console.log(`✅ Found static files at: ${staticPath}`);
+        break;
+      }
+    } catch (error) {
+      console.log(`❌ Path not found: ${testPath}`);
+    }
+  }
+  
+  if (staticPath) {
+    // Serve static files from the React build
+    app.use(express.static(staticPath));
+    
+    // Handle React routing, return all requests to React app
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(staticPath, 'index.html'));
+    });
+  } else {
+    console.log('⚠️ No static files found, serving API only');
+    app.get('*', (req, res) => {
+      res.json({ message: 'API is running, but frontend files not found' });
+    });
+  }
 }
 
 // Start server
@@ -79,7 +108,7 @@ app.listen(PORT, () => {
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
   console.log(`🧪 Test endpoint: http://localhost:${PORT}/api/test`);
   if (process.env.NODE_ENV === 'production') {
-    console.log(`🌐 Production mode: Serving React app from client/dist`);
+    console.log(`🌐 Production mode: Looking for React app files...`);
   }
 });
 
