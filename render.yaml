@@ -11,5 +11,8 @@ services:
         value: production
       - key: PORT
         value: 10000
+      - key: START_COMMAND
+        value: node server/index.js
     healthCheckPath: /api/health
     autoDeploy: true
+    rootDir: .
