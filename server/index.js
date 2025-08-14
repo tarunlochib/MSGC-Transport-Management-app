@@ -2,7 +2,6 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const { PrismaClient } = require('@prisma/client');
-const fs = require('fs'); // Added fs module for file existence checks
 
 const app = express();
 const prisma = new PrismaClient();
@@ -65,67 +64,13 @@ app.get('/api/health', async (req, res) => {
 
 // Serve static files from the React app build
 if (process.env.NODE_ENV === 'production') {
-  // Try multiple possible paths for the dist folder, prioritizing root level
-  const possiblePaths = [
-    path.join(__dirname, '../dist'),           // Root level dist (priority 1)
-    path.join(__dirname, '../../dist'),        // Root level dist (priority 2)
-    path.join(__dirname, '../../../dist'),     // Root level dist (priority 3)
-    path.join(__dirname, '../client/dist'),    // Client dist (fallback)
-    path.join(__dirname, '../../client/dist'), // Client dist (fallback)
-    path.join(__dirname, '../../../client/dist'), // Client dist (fallback)
-    path.join(__dirname, 'client/dist'),      // Server-relative client dist
-    path.join(__dirname, '../dist-root'),     // Backup dist-root
-    path.join(__dirname, '../../dist-root')   // Backup dist-root
-  ];
+  // Serve static files from the React build
+  app.use(express.static(path.join(__dirname, '../client/dist')));
   
-  let staticPath = null;
-  console.log('🔍 Searching for static files...');
-  
-  for (const testPath of possiblePaths) {
-    try {
-      const fullPath = path.resolve(testPath);
-      console.log(`🔍 Checking: ${testPath} -> ${fullPath}`);
-      
-      if (fs.existsSync(fullPath)) {
-        console.log(`✅ Path exists: ${fullPath}`);
-        
-        if (fs.existsSync(path.join(fullPath, 'index.html'))) {
-          staticPath = fullPath;
-          console.log(`🎯 Found static files at: ${staticPath}`);
-          break;
-        } else {
-          console.log(`⚠️ Path exists but no index.html: ${fullPath}`);
-        }
-      } else {
-        console.log(`❌ Path not found: ${fullPath}`);
-      }
-    } catch (error) {
-      console.log(`❌ Error checking ${testPath}:`, error.message);
-    }
-  }
-  
-  if (staticPath) {
-    console.log(`🚀 Serving static files from: ${staticPath}`);
-    // Serve static files from the React build
-    app.use(express.static(staticPath));
-    
-    // Handle React routing, return all requests to React app
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(staticPath, 'index.html'));
-    });
-  } else {
-    console.log('⚠️ No static files found, serving API only');
-    console.log('🔍 Searched paths:', possiblePaths);
-    app.get('*', (req, res) => {
-      res.json({ 
-        message: 'API is running, but frontend files not found',
-        searchedPaths: possiblePaths,
-        currentDir: __dirname,
-        workingDir: process.cwd(),
-        note: 'Check build logs to see where dist folder was created'
-      });
-    });
-  }
+  // Handle React routing, return all requests to React app
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../client/dist', 'index.html'));
+  });
 }
 
 // Start server
@@ -134,7 +79,7 @@ app.listen(PORT, () => {
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
   console.log(`🧪 Test endpoint: http://localhost:${PORT}/api/test`);
   if (process.env.NODE_ENV === 'production') {
-    console.log(`🌐 Production mode: Looking for React app files...`);
+    console.log(`🌐 Production mode: Serving React app from client/dist`);
   }
 });
 
