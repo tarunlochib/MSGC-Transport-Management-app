@@ -1,160 +1,130 @@
-# MSGC Transport Management Application
+# 🚛 MSGC Transport Management App
 
-A full-stack transport management application built with modern web technologies.
+A comprehensive transport management system built with React, Node.js, and Prisma.
 
-## 🚀 Tech Stack
+## 🚀 **Quick Deploy**
 
-- **Frontend**: Vite + React
-- **Backend**: Express.js
+### **Deploy to Render + Supabase in 5 minutes:**
+1. **Supabase**: Create project & get database URL
+2. **Render**: Connect repo & deploy with Docker
+3. **Environment**: Set DATABASE_URL & JWT_SECRET
+4. **Test**: Visit your live app!
+
+📖 **[Full Deployment Guide](DEPLOYMENT.md)** | ⚡ **[Quick Start](QUICK_START.md)**
+
+## 🏗️ **Architecture**
+
+- **Frontend**: React + Tailwind CSS
+- **Backend**: Node.js + Express
+- **Database**: PostgreSQL (Supabase)
 - **ORM**: Prisma
-- **Database**: PostgreSQL
+- **Containerization**: Docker
+- **Deployment**: Render
 
-## 📁 Project Structure
+## 🗄️ **Database Schema**
 
-```
-MSGC-Transport-Management-app/
-├── client/                 # React frontend
-│   ├── src/
-│   │   ├── App.jsx        # Main app component
-│   │   ├── main.jsx       # React entry point
-│   │   └── index.css      # Global styles
-│   ├── package.json       # Frontend dependencies
-│   └── vite.config.js     # Vite configuration
-├── server/                 # Express backend
-│   ├── prisma/
-│   │   └── schema.prisma  # Database schema
-│   ├── index.js           # Express server
-│   ├── package.json       # Backend dependencies
-│   └── env.example        # Environment variables template
-└── package.json           # Root package.json with scripts
-```
+- **Users**: Authentication & roles
+- **Customers**: Consignors & consignees
+- **Transporters**: Transport companies
+- **Vehicles**: Fleet management
+- **Drivers**: Driver information
+- **Bookings**: Transport orders
+- **Packages**: Cargo details
+- **Invoices**: Billing management
+- **Expenses**: Cost tracking
 
-## 🗄️ Database Models
+## 🚀 **Local Development**
 
-### Transport
-- `id` (String, Primary Key)
-- `name` (String)
-- `commissionRate` (Float)
-- `createdAt` (DateTime)
-
-### Booking
-- `id` (String, Primary Key)
-- `grNumber` (String, Unique)
-- `bookingDate` (DateTime)
-- `quantity` (Int)
-- `weightKg` (Float)
-- `toPayAmount` (Float)
-- `paidAmount` (Float)
-- `deliveryStation` (String)
-- `localCartage` (Float)
-- `transportId` (String, Foreign Key)
-- `createdAt` (DateTime)
-
-## 🛠️ Setup Instructions
-
-### Prerequisites
-- Node.js (v16 or higher)
-- PostgreSQL database
-- npm or yarn
-
-### 1. Install Dependencies
 ```bash
+# Install dependencies
 npm run install:all
-```
 
-### 2. Database Setup
+# Start development servers
+npm run dev
 
-1. Create a PostgreSQL database named `transport_management`
-2. Copy `server/env.example` to `server/.env`
-3. Update the `DATABASE_URL` in `server/.env` with your database credentials:
-   ```
-   DATABASE_URL="postgresql://username:password@localhost:5432/transport_management?schema=public"
-   ```
-
-### 3. Initialize Database
-```bash
-cd server
+# Database operations
 npm run db:generate
 npm run db:push
+npm run db:studio
 ```
 
-### 4. Start Development Servers
+## 🐳 **Docker Development**
+
 ```bash
-npm run dev
+# Build and run locally
+docker build -t msgc-transport-app .
+docker run -p 10000:10000 msgc-transport-app
+
+# Test production config
+docker-compose -f docker-compose.prod.yml up --build
 ```
 
-This will start both servers concurrently:
-- Frontend: http://localhost:3000
-- Backend: http://localhost:5000
+## 🌐 **API Endpoints**
 
-## 📡 API Endpoints
+- `GET /api/health` - Health check
+- `GET /api/test` - Test endpoint
+- `POST /api/auth/login` - User authentication
+- `GET /api/customers` - Customer management
+- `GET /api/bookings` - Booking management
+- `GET /api/vehicles` - Vehicle management
+- `GET /api/drivers` - Driver management
+- `GET /api/expenses` - Expense tracking
 
-### Test Endpoints
-- `GET /api/test` - Test API connection
-- `GET /api/health` - Health check with database connection
-
-## 🎯 Features
-
-- ✅ Full-stack React + Express setup
-- ✅ Prisma ORM with PostgreSQL
-- ✅ CORS and JSON middleware
-- ✅ API proxy configuration
-- ✅ Modern UI with responsive design
-- ✅ Real-time API testing
-- ✅ Concurrent development servers
-
-## 🚀 Available Scripts
-
-### Root Level
-- `npm run dev` - Start both frontend and backend in development
-- `npm run install:all` - Install all dependencies
-- `npm run build` - Build frontend for production
-- `npm run start` - Start production server
-
-### Server Only
-- `npm run server:dev` - Start backend in development
-- `npm run db:generate` - Generate Prisma client
-- `npm run db:push` - Push schema to database
-- `npm run db:migrate` - Run database migrations
-- `npm run db:studio` - Open Prisma Studio
-
-### Client Only
-- `npm run client:dev` - Start frontend in development
-- `npm run build` - Build for production
-- `npm run preview` - Preview production build
-
-## 🔧 Development
-
-The application uses a proxy configuration in Vite, so API calls from the frontend will automatically be forwarded to the backend server running on port 5000.
-
-## 📝 Environment Variables
-
-Create a `.env` file in the `server` directory with the following variables:
+## 🔧 **Environment Variables**
 
 ```env
-DATABASE_URL="postgresql://username:password@localhost:5432/transport_management?schema=public"
-PORT=5000
-NODE_ENV=development
+DATABASE_URL="postgresql://username:password@host:port/database"
+JWT_SECRET="your-super-secret-jwt-key"
+NODE_ENV="development"
+PORT=10000
+CORS_ORIGIN="*"
 ```
 
-## 🎨 UI Features
+## 📱 **Features**
 
-- Modern gradient design
-- Glassmorphism effects
-- Responsive layout
-- Interactive API testing
-- Real-time status updates
-- Hover animations
+- **Dashboard**: Overview & analytics
+- **Customer Management**: CRUD operations
+- **Booking System**: Transport order management
+- **Vehicle Fleet**: Fleet tracking & maintenance
+- **Driver Management**: License & permit tracking
+- **Expense Tracking**: Cost management
+- **Billing System**: Invoice generation
+- **Reports**: Analytics & insights
 
-## 🔄 Next Steps
+## 🚀 **Deployment Status**
 
-1. Add authentication system
-2. Implement CRUD operations for Transport and Booking
-3. Add form validation
-4. Implement search and filtering
-5. Add data visualization charts
-6. Set up production deployment
+- ✅ **Local Development**: Working
+- ✅ **Docker Build**: Working
+- ✅ **Database Connection**: Working
+- ✅ **API Endpoints**: Working
+- 🚧 **Render Deployment**: Ready to deploy
+- 🚧 **Supabase Integration**: Ready to configure
 
-## 📄 License
+## 📚 **Documentation**
 
-MIT License 
+- **[Deployment Guide](DEPLOYMENT.md)** - Complete deployment instructions
+- **[Quick Start](QUICK_START.md)** - 5-minute setup guide
+- **[API Documentation](docs/api.md)** - API reference
+- **[Database Schema](docs/schema.md)** - Database structure
+
+## 🤝 **Contributing**
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
+## 📄 **License**
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## 🆘 **Support**
+
+- **Issues**: [GitHub Issues](https://github.com/your-repo/issues)
+- **Documentation**: Check the docs folder
+- **Deployment Help**: See [DEPLOYMENT.md](DEPLOYMENT.md)
+
+---
+
+**Built with ❤️ by MSGC Team** 

@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: msgc-transport-app
+    env: docker
+    plan: starter
+    region: oregon
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: CORS_ORIGIN
+        value: "*"
+    buildCommand: docker build -t msgc-transport-app .
+    startCommand: docker run -p $PORT:10000 msgc-transport-app
