@@ -49,13 +49,13 @@ router.post('/generate', async (req, res) => {
       const commissionRate = transporter.commissionRate || 0; // This is rupees per kg
       const commissionAmount = booking.weightKg * commissionRate;
       
-      // Add local cartage charges to commission amount
-      const totalDue = commissionAmount + booking.localCartageCharges;
+      // Use the actual total charges from the booking for billing
+      const totalDue = booking.totalCharges || 0;
       
       // Calculate paid amount based on payment method
       const paidAmount = booking.paymentMethod === 'Paid' ? booking.totalCharges : 0;
       
-      // Subtract paid amount to get remaining amount
+      // Calculate remaining amount (this will be 0 if paid, or totalCharges if not paid)
       const remainingAmount = totalDue - paidAmount;
       
       return {
@@ -144,13 +144,13 @@ router.get('/transporter/:transporterId', async (req, res) => {
       const commissionRate = transporter.commissionRate || 0; // This is rupees per kg
       const commissionAmount = booking.weightKg * commissionRate;
       
-      // Add local cartage charges to commission amount
-      const totalDue = commissionAmount + booking.localCartageCharges;
+      // Use the actual total charges from the booking for billing
+      const totalDue = booking.totalCharges || 0;
       
       // Calculate paid amount based on payment method
       const paidAmount = booking.paymentMethod === 'Paid' ? booking.totalCharges : 0;
       
-      // Subtract paid amount to get remaining amount
+      // Calculate remaining amount (this will be 0 if paid, or totalCharges if not paid)
       const remainingAmount = totalDue - paidAmount;
       
       return {

@@ -837,21 +837,21 @@ const PrintableBill = ({ billData, onClose }) => {
                     <td className="p-2">{booking.fromLocation}</td>
                     <td className="p-2">{booking.toLocation}</td>
                     <td className="p-2">{formatWeight(booking.weightKg)}</td>
-                    <td className="p-2 text-center">
-                      {booking.amountPaid && booking.amountPaid > 0 
-                        ? formatCurrency(booking.amountPaid) 
-                        : '-'
-                      }
-                    </td>
-                    <td className="p-2 font-semibold">
-                      {booking.amountPaid && booking.amountPaid > 0 
-                        ? formatCurrency((booking.totalDue || (booking.commissionAmount + booking.localCartageCharges)) - booking.amountPaid)
-                        : formatCurrency(booking.totalDue || (booking.commissionAmount + booking.localCartageCharges))
-                      }
-                    </td>
+                                         <td className="p-2 text-center">
+                       {booking.paidAmount && booking.paidAmount > 0 
+                         ? formatCurrency(booking.paidAmount) 
+                         : '-'
+                       }
+                     </td>
+                                           <td className="p-2 font-semibold">
+                        {booking.paidAmount && booking.paidAmount > 0 
+                          ? '-'
+                          : formatCurrency(booking.totalCharges || booking.totalDue)
+                        }
+                      </td>
                     <td className="p-2">{formatCurrency(booking.commissionAmount || (booking.weightKg * (billData.transporter?.commissionRate || billData.commissionRate)))}</td>
                     <td className="p-2">{formatCurrency(booking.localCartageCharges)}</td>
-                    <td className="p-2 font-semibold">{formatCurrency(booking.totalDue || (booking.commissionAmount + booking.localCartageCharges))}</td>
+                                         <td className="p-2 font-semibold">{formatCurrency(booking.totalCharges || booking.totalDue)}</td>
                   </tr>
                 ))}
               </tbody>

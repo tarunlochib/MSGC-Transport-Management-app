@@ -24,10 +24,32 @@ ChartJS.register(
   Legend
 );
 
-const DashboardCharts = ({ recentBookings, recentExpenses, loading }) => {
+const DashboardCharts = ({ recentBookings, recentExpenses, loading, onRefresh, totalRevenue, allBookings, allExpenses, monthlyRevenueData, monthlyExpensesData, dailyRevenueData, dailyExpensesData }) => {
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // Debug logging to see what data we're receiving
+  console.log('DashboardCharts received:', {
+    allBookings: allBookings?.length || 0,
+    recentBookings: recentBookings?.length || 0,
+    allExpenses: allExpenses?.length || 0,
+    recentExpenses: recentExpenses?.length || 0,
+    totalRevenue,
+    totalRevenueType: typeof totalRevenue,
+    totalRevenueValue: totalRevenue
+  });
   const [selectedPeriod, setSelectedPeriod] = useState('12months');
   const [viewMode, setViewMode] = useState('monthly'); // 'monthly' or 'daily'
   const [selectedMonth, setSelectedMonth] = useState('');
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await onRefresh();
+    } finally {
+      // Add a small delay to show the animation
+      setTimeout(() => setIsRefreshing(false), 500);
+    }
+  };
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -49,41 +71,53 @@ const DashboardCharts = ({ recentBookings, recentExpenses, loading }) => {
     return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
   };
 
-  // Calculate real revenue data from bookings with fallback
+  // Use monthly revenue data from parent (correctly calculated as commission + local cartage)
   const revenueData = useMemo(() => {
     const now = new Date();
     const months = [];
-    const monthlyRevenue = {};
 
     // Generate last 12 months
     for (let i = 11; i >= 0; i--) {
       const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const monthKey = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
       months.push(monthKey);
-      monthlyRevenue[monthKey] = 0;
     }
 
-    // Calculate revenue for each booking if available
-    if (recentBookings && recentBookings.length > 0) {
-      recentBookings.forEach(booking => {
+    // Use monthly revenue data from parent if available
+    if (monthlyRevenueData && Object.keys(monthlyRevenueData).length > 0) {
+      const monthlyData = months.map(month => ({
+        month,
+        revenue: monthlyRevenueData[month] || 0
+      }));
+
+      const maxRevenue = Math.max(...monthlyData.map(data => data.revenue), 1000);
+
+      console.log('Using parent monthly revenue data:', {
+        monthlyRevenueData,
+        monthlyData,
+        totalRevenue
+      });
+
+      return { monthlyData, totalRevenue: totalRevenue || 0, maxRevenue };
+    }
+
+    // Fallback: Calculate from allBookings if parent data not available
+    const monthlyRevenue = {};
+    months.forEach(month => monthlyRevenue[month] = 0);
+
+    if (allBookings && allBookings.length > 0) {
+      allBookings.forEach(booking => {
         const bookingDate = new Date(booking.createdAt);
         const monthKey = bookingDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
         
         if (monthlyRevenue.hasOwnProperty(monthKey)) {
-          // Calculate total charges for this booking
+          // Calculate your actual revenue: commission + local cartage
+          // We need to get transporter data to calculate commission
+          // For now, use a placeholder - this will be updated when we have transporter data
           const totalCharges = booking.totalCharges || 0;
+          // TODO: Replace with actual commission + local cartage calculation
           monthlyRevenue[monthKey] += totalCharges;
         }
-      });
-    }
-
-    // If no real data, create sample data for demonstration
-    if (recentBookings && recentBookings.length === 0) {
-      months.forEach((month, index) => {
-        // Generate realistic sample data with smaller ranges
-        const baseAmount = 8000 + (Math.random() * 12000); // ₹8,000 - ₹20,000
-        const trend = Math.sin(index * 0.5) * 0.3 + 1; // Create a trend
-        monthlyRevenue[month] = Math.floor(baseAmount * trend);
       });
     }
 
@@ -92,29 +126,56 @@ const DashboardCharts = ({ recentBookings, recentExpenses, loading }) => {
       revenue: monthlyRevenue[month] || 0
     }));
 
-    const totalRevenue = monthlyData.reduce((sum, data) => sum + data.revenue, 0);
+    const calculatedTotalRevenue = totalRevenue || monthlyData.reduce((sum, data) => sum + data.revenue, 0);
     const maxRevenue = Math.max(...monthlyData.map(data => data.revenue), 1000);
 
-    return { monthlyData, totalRevenue, maxRevenue };
-  }, [recentBookings]);
+    console.log('Fallback revenue calculation:', {
+      totalRevenueFromParent: totalRevenue,
+      calculatedFromMonthly: monthlyData.reduce((sum, data) => sum + data.revenue, 0),
+      finalTotalRevenue: calculatedTotalRevenue,
+      monthlyData: monthlyData
+    });
 
-  // Calculate expenses data with fallback
+    return { monthlyData, totalRevenue: calculatedTotalRevenue, maxRevenue };
+  }, [monthlyRevenueData, allBookings, totalRevenue]);
+
+  // Use monthly expenses data from parent
   const expensesData = useMemo(() => {
     const now = new Date();
     const months = [];
-    const monthlyExpenses = {};
 
     // Generate last 12 months
     for (let i = 11; i >= 0; i--) {
       const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const monthKey = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
       months.push(monthKey);
-      monthlyExpenses[monthKey] = 0;
     }
 
-    // Calculate expenses for each expense if available
-    if (recentExpenses && recentExpenses.length > 0) {
-      recentExpenses.forEach(expense => {
+    // Use monthly expenses data from parent if available
+    if (monthlyExpensesData && Object.keys(monthlyExpensesData).length > 0) {
+      const monthlyData = months.map(month => ({
+        month,
+        expenses: monthlyExpensesData[month] || 0
+      }));
+
+      const totalExpenses = monthlyData.reduce((sum, data) => sum + data.expenses, 0);
+      const maxExpenses = Math.max(...monthlyData.map(data => data.expenses), 1000);
+
+      console.log('Using parent monthly expenses data:', {
+        monthlyExpensesData,
+        monthlyData,
+        totalExpenses
+      });
+
+      return { monthlyData, totalExpenses, maxExpenses };
+    }
+
+    // Fallback: Calculate from allExpenses if parent data not available
+    const monthlyExpenses = {};
+    months.forEach(month => monthlyExpenses[month] = 0);
+
+    if (allExpenses && allExpenses.length > 0) {
+      allExpenses.forEach(expense => {
         const expenseDate = new Date(expense.createdAt);
         const monthKey = expenseDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
         
@@ -122,16 +183,6 @@ const DashboardCharts = ({ recentBookings, recentExpenses, loading }) => {
           const amount = expense.amount || 0;
           monthlyExpenses[monthKey] += amount;
         }
-      });
-    }
-
-    // If no real data, create sample data for demonstration
-    if (recentExpenses && recentExpenses.length === 0) {
-      months.forEach((month, index) => {
-        // Generate realistic sample expense data with smaller ranges
-        const baseAmount = 2000 + (Math.random() * 4000); // ₹2,000 - ₹6,000
-        const trend = Math.sin(index * 0.3) * 0.2 + 1; // Create a trend
-        monthlyExpenses[month] = Math.floor(baseAmount * trend);
       });
     }
 
@@ -144,7 +195,7 @@ const DashboardCharts = ({ recentBookings, recentExpenses, loading }) => {
     const maxExpenses = Math.max(...monthlyData.map(data => data.expenses), 1000);
 
     return { monthlyData, totalExpenses, maxExpenses };
-  }, [recentExpenses]);
+  }, [monthlyExpensesData, allExpenses]);
 
   // Calculate profit data
   const profitData = useMemo(() => {
@@ -156,12 +207,12 @@ const DashboardCharts = ({ recentBookings, recentExpenses, loading }) => {
       const profit = (revenueItem.revenue || 0) - (expenseItem?.expenses || 0);
       return {
         month: revenueItem.month,
-        profit: Math.max(0, profit) // Ensure profit is not negative for visualization
+        profit: profit // Allow negative profit for accurate representation
       };
     });
   }, [revenueData, expensesData]);
 
-  // Calculate daily data for selected month
+  // Use daily revenue data from parent (correctly calculated as commission + local cartage)
   const dailyData = useMemo(() => {
     if (viewMode !== 'daily' || !selectedMonth) {
       return { revenueData: [], expensesData: [], profitData: [] };
@@ -175,6 +226,44 @@ const DashboardCharts = ({ recentBookings, recentExpenses, loading }) => {
     // Get number of days in the selected month
     const daysInMonth = new Date(yearNum, monthIndex + 1, 0).getDate();
     
+    // Use daily data from parent if available and for current month
+    const currentDate = new Date();
+    const currentMonth = currentDate.getMonth();
+    const currentYear = currentDate.getFullYear();
+    
+    if (monthIndex === currentMonth && yearNum === currentYear && dailyRevenueData && dailyExpensesData) {
+      // Use parent daily data for current month
+      const revenueData = Array.from({ length: daysInMonth }, (_, i) => ({
+        day: i + 1,
+        revenue: dailyRevenueData[i + 1] || 0
+      }));
+
+      const expensesData = Array.from({ length: daysInMonth }, (_, i) => ({
+        day: i + 1,
+        expenses: dailyExpensesData[i + 1] || 0
+      }));
+
+      const profitData = revenueData.map((revenueItem, index) => {
+        const expenseItem = expensesData[index];
+        const profit = (revenueItem.revenue || 0) - (expenseItem?.expenses || 0);
+        return {
+          day: revenueItem.day,
+          profit: profit
+        };
+      });
+
+      console.log('Using parent daily data:', {
+        dailyRevenueData,
+        dailyExpensesData,
+        revenueData,
+        expensesData,
+        profitData
+      });
+
+      return { revenueData, expensesData, profitData };
+    }
+
+    // Fallback: Calculate from allBookings if parent data not available
     const dailyRevenue = {};
     const dailyExpenses = {};
 
@@ -185,11 +274,13 @@ const DashboardCharts = ({ recentBookings, recentExpenses, loading }) => {
     }
 
     // Calculate daily revenue from bookings
-    if (recentBookings && recentBookings.length > 0) {
-      recentBookings.forEach(booking => {
+    if (allBookings && allBookings.length > 0) {
+      allBookings.forEach(booking => {
         const bookingDate = new Date(booking.createdAt);
         if (bookingDate.getMonth() === monthIndex && bookingDate.getFullYear() === yearNum) {
           const day = bookingDate.getDate();
+          // TODO: We need transporter data to calculate commission + local cartage
+          // For now, using totalCharges as placeholder - this should be updated
           const totalCharges = booking.totalCharges || 0;
           dailyRevenue[day] += totalCharges;
         }
@@ -197,8 +288,8 @@ const DashboardCharts = ({ recentBookings, recentExpenses, loading }) => {
     }
 
     // Calculate daily expenses
-    if (recentExpenses && recentExpenses.length > 0) {
-      recentExpenses.forEach(expense => {
+    if (allExpenses && allExpenses.length > 0) {
+      allExpenses.forEach(expense => {
         const expenseDate = new Date(expense.createdAt);
         if (expenseDate.getMonth() === monthIndex && expenseDate.getFullYear() === yearNum) {
           const day = expenseDate.getDate();
@@ -240,12 +331,12 @@ const DashboardCharts = ({ recentBookings, recentExpenses, loading }) => {
       const profit = (revenueItem.revenue || 0) - (expenseItem?.expenses || 0);
       return {
         day: revenueItem.day,
-        profit: Math.max(0, profit)
+        profit: profit
       };
     });
 
     return { revenueData, expensesData, profitData };
-  }, [viewMode, selectedMonth, recentBookings, recentExpenses]);
+  }, [viewMode, selectedMonth, dailyRevenueData, dailyExpensesData, allBookings, allExpenses, recentBookings, recentExpenses]);
 
   // Get current period data based on selection
   const getCurrentPeriodData = () => {
@@ -266,23 +357,47 @@ const DashboardCharts = ({ recentBookings, recentExpenses, loading }) => {
   };
 
   const currentData = getCurrentPeriodData();
+  
+  // Debug: Log what data will be used in charts
+  console.log('Chart data:', {
+    viewMode,
+    selectedPeriod,
+    currentDataLength: currentData.length,
+    currentData: currentData.map(data => ({
+      month: data.month || data.day,
+      revenue: data.revenue
+    })),
+    totalRevenueFromParent: totalRevenue
+  });
 
   // Calculate current period totals
   const currentPeriodTotals = useMemo(() => {
     if (viewMode === 'daily') {
       // For daily view, calculate totals for the selected month
-      const totalRevenue = dailyData.revenueData.reduce((sum, data) => sum + data.revenue, 0);
+      const dailyRevenue = dailyData.revenueData.reduce((sum, data) => sum + data.revenue, 0);
       const totalExpenses = dailyData.expensesData.reduce((sum, data) => sum + data.expenses, 0);
-      const totalProfit = totalRevenue - totalExpenses;
-      return { totalRevenue, totalExpenses, totalProfit };
+      const totalProfit = dailyRevenue - totalExpenses;
+      return { totalRevenue: dailyRevenue, totalExpenses, totalProfit };
     } else {
-      // For monthly view, calculate totals for the selected period
-      const totalRevenue = currentData.reduce((sum, data) => sum + data.revenue, 0);
+      // For monthly view, use the totalRevenue from parent (all bookings) for the main display
+      // and calculate profit correctly
       const totalExpenses = currentData.map((data, index) => expensesData.monthlyData[index]?.expenses || 0).reduce((sum, expense) => sum + expense, 0);
-      const totalProfit = totalRevenue - totalExpenses;
-      return { totalRevenue, totalExpenses, totalProfit };
+      const totalProfit = (totalRevenue || 0) - totalExpenses;
+      
+      console.log('Monthly totals calculation:', {
+        totalRevenueFromParent: totalRevenue,
+        totalExpenses,
+        totalProfit,
+        currentDataLength: currentData.length
+      });
+      
+      return { 
+        totalRevenue: totalRevenue || 0, // Use parent totalRevenue (commission + local cartage)
+        totalExpenses, 
+        totalProfit 
+      };
     }
-  }, [viewMode, currentData, dailyData, expensesData.monthlyData]);
+  }, [viewMode, currentData, dailyData, expensesData.monthlyData, totalRevenue]);
 
   // Chart.js configuration
   const chartData = {
@@ -294,7 +409,7 @@ const DashboardCharts = ({ recentBookings, recentExpenses, loading }) => {
         label: 'Revenue',
         data: viewMode === 'daily' 
           ? currentData.map(data => data.revenue)
-          : currentData.map(data => data.revenue),
+          : currentData.map(data => data.revenue), // Use the revenue calculated from allBookings
         backgroundColor: viewMode === 'daily' 
           ? 'rgba(59, 130, 246, 0.1)'
           : 'rgba(59, 130, 246, 0.8)',
@@ -447,6 +562,9 @@ const DashboardCharts = ({ recentBookings, recentExpenses, loading }) => {
                 {recentBookings && recentBookings.length === 0 && (
                   <span className="text-xs text-gray-500 ml-2">(Sample Data)</span>
                 )}
+                {recentBookings && recentBookings.length > 0 && (
+                  <span className="text-xs text-blue-600 ml-2">(Commission + Local Cartage)</span>
+                )}
               </p>
             </div>
             <div className="px-3 py-1 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -572,7 +690,24 @@ const DashboardCharts = ({ recentBookings, recentExpenses, loading }) => {
         <div className="bg-gray-50 rounded-lg p-3">
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-sm font-semibold text-gray-900">Recent Bookings</h4>
-            <Link to="/bookings" className="text-xs text-blue-600 hover:text-blue-700">View All</Link>
+            <div className="flex items-center space-x-2">
+              <button 
+                onClick={handleRefresh} 
+                className="text-xs text-green-600 hover:text-green-700 transition-all duration-200"
+                title="Refresh recent bookings"
+                disabled={isRefreshing}
+              >
+                {isRefreshing ? (
+                  <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                ) : (
+                  '↻'
+                )}
+              </button>
+              <Link to="/bookings" className="text-xs text-blue-600 hover:text-blue-700">View All</Link>
+            </div>
           </div>
           <div className="space-y-2">
             {recentBookings && recentBookings.length > 0 ? (
@@ -609,7 +744,24 @@ const DashboardCharts = ({ recentBookings, recentExpenses, loading }) => {
         <div className="bg-gray-50 rounded-lg p-3">
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-sm font-semibold text-gray-900">Recent Expenses</h4>
-            <Link to="/expenses" className="text-xs text-purple-600 hover:text-purple-700">View All</Link>
+            <div className="flex items-center space-x-2">
+              <button 
+                onClick={handleRefresh} 
+                className="text-xs text-green-600 hover:text-green-700 transition-all duration-200"
+                title="Refresh recent expenses"
+                disabled={isRefreshing}
+              >
+                {isRefreshing ? (
+                  <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                ) : (
+                  '↻'
+                )}
+              </button>
+              <Link to="/expenses" className="text-xs text-purple-600 hover:text-purple-700">View All</Link>
+            </div>
           </div>
           <div className="space-y-2">
             {recentExpenses && recentExpenses.length > 0 ? (
