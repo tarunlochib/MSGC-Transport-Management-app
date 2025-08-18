@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/layout/Layout';
 import AuthPage from './components/AuthPage';
+import SignupPage from './components/SignupPage';
 import { useAuth } from './context/AuthContext';
 
 // Import pages
@@ -35,6 +36,11 @@ import CreateDriverPage from './components/drivers/CreateDriverPage';
 import EditDriverPage from './components/drivers/EditDriverPage';
 import ViewDriverPage from './components/drivers/ViewDriverPage';
 
+// Import challan components
+import ChallansListPage from './components/challans/ChallansListPage';
+import CreateChallanPage from './components/challans/CreateChallanPage';
+import ChallanDetailsPage from './components/challans/ChallanDetailsPage';
+
 function App() {
   const { isAuthenticated, loading } = useAuth();
 
@@ -57,6 +63,7 @@ function App() {
         <Route path="/login" element={
           isAuthenticated ? <Navigate to="/dashboard" replace /> : <AuthPage />
         } />
+        <Route path="/signup" element={<SignupPage />} />
         
         {/* Protected Routes */}
         <Route path="/*" element={
@@ -101,6 +108,11 @@ function App() {
                 
                 {/* Billing */}
                 <Route path="/billing" element={<BillingPage />} />
+                
+                {/* Challans */}
+                <Route path="/challans" element={<ChallansListPage />} />
+                <Route path="/challans/create" element={<CreateChallanPage />} />
+                <Route path="/challans/:id" element={<ChallanDetailsPage />} />
                 
                 {/* Default redirect */}
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />

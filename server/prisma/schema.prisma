@@ -52,6 +52,7 @@ model Transporter {
   updatedAt      DateTime  @updatedAt
   bookings       Booking[]
   vehicles       Vehicle[]
+  challans       Challan[]
 
   @@map("transporters")
 }
@@ -79,6 +80,7 @@ model Vehicle {
   bookings           Booking[]
   driver             Driver?
   expenses           Expense[]
+  challans           Challan[]
   transporter        Transporter? @relation(fields: [transporterId], references: [id])
 
   @@map("vehicles")
@@ -106,6 +108,7 @@ model Driver {
   updatedAt         DateTime  @updatedAt
   bookings          Booking[]
   vehicle           Vehicle?  @relation(fields: [vehicleId], references: [id])
+  challans          Challan[]
 
   @@map("drivers")
 }
@@ -150,6 +153,7 @@ model Booking {
   transporter         Transporter @relation(fields: [transporterId], references: [id], onDelete: Cascade)
   invoices            Invoice[]
   packages            Package[]
+  challanGoods        ChallanGoods[]
 
   @@map("bookings")
 }
@@ -195,4 +199,47 @@ model Expense {
   vehicle        Vehicle? @relation(fields: [vehicleId], references: [id])
 
   @@map("expenses")
+}
+
+model Challan {
+  id                String         @id @default(cuid())
+  challanNumber     String         @unique
+  dateGenerated     DateTime       @default(now())
+  transportCompanyId String
+  truckId           String
+  driverId          String
+  fromLocation      String
+  toLocation        String
+  totalPackages     Int            @default(0)
+  totalWeight       Float          @default(0)
+  totalCharges      Float          @default(0)
+  status            String         @default("Generated")
+  notes             String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  
+  transportCompany  Transporter    @relation(fields: [transportCompanyId], references: [id])
+  truck             Vehicle        @relation(fields: [truckId], references: [id])
+  driver            Driver         @relation(fields: [driverId], references: [id])
+  challanGoods      ChallanGoods[]
+
+  @@map("challans")
+}
+
+model ChallanGoods {
+  id                 String   @id @default(cuid())
+  challanId          String
+  bookingId          String
+  serialNumber       Int
+  packages           Int      @default(0)
+  weight             Float    @default(0)
+  destinationLocation String
+  charges            Float    @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  
+  challan            Challan  @relation(fields: [challanId], references: [id], onDelete: Cascade)
+  booking            Booking  @relation(fields: [bookingId], references: [id])
+
+  @@map("challan_goods")
 }

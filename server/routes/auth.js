@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const { PrismaClient } = require('@prisma/client');
+const { checkIPAccess } = require('../middleware/ipValidation');
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -171,6 +172,65 @@ router.get('/me', async (req, res) => {
   } catch (error) {
     console.error('Get user error:', error);
     res.status(401).json({ error: 'Invalid token' });
+  }
+});
+
+// Check signup access (IP validation)
+router.get('/check-signup-access', checkIPAccess, (req, res) => {
+  res.json({ 
+    message: 'Access granted',
+    clientIP: req.ip || req.connection.remoteAddress
+  });
+});
+
+// IP-restricted signup endpoint
+router.post('/signup', checkIPAccess, validateSignUp, async (req, res) => {
+  try {
+    // Check for validation errors
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { name, email, password } = req.body;
+
+    // Check if user already exists
+    const existingUser = await prisma.user.findUnique({
+      where: { email }
+    });
+
+    if (existingUser) {
+      return res.status(400).json({ error: 'User with this email already exists' });
+    }
+
+    // Hash password
+    const saltRounds = 12;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+    // Create user
+    const user = await prisma.user.create({
+      data: {
+        name,
+        email,
+        password: hashedPassword
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        createdAt: true
+      }
+    });
+
+    res.status(201).json({
+      message: 'User created successfully',
+      user
+    });
+
+  } catch (error) {
+    console.error('Sign up error:', error);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 

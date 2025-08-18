@@ -27,6 +27,18 @@ const AuthPage = () => {
         <main className="flex-1 flex items-center justify-center px-6 pb-8">
           <div className="w-full max-w-md">
             <SignInForm />
+            {/* Signup Link */}
+            <div className="text-center mt-6">
+              <p className="text-sm text-slate-600 mb-2">
+                Need to create a new user?
+              </p>
+              <a
+                href="/signup"
+                className="text-blue-600 hover:text-blue-800 font-medium text-sm transition-colors duration-200 hover:underline"
+              >
+                Create New User Account
+              </a>
+            </div>
           </div>
         </main>
 

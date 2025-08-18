@@ -20,6 +20,7 @@ const bookingRoutes = require('./routes/bookings');
 const expenseRoutes = require('./routes/expenses');
 const billingRoutes = require('./routes/billing');
 const customerRoutes = require('./routes/customers');
+const challanRoutes = require('./routes/challans');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/transporters', transporterRoutes);
@@ -29,6 +30,7 @@ app.use('/api/bookings', bookingRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/customers', customerRoutes);
+app.use('/api/challans', challanRoutes);
 
 // Test route
 app.get('/api/test', async (req, res) => {
