@@ -9,8 +9,10 @@ const ChallanDetailsPage = () => {
   const [challan, setChallan] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
+    setIsVisible(true);
     fetchChallanDetails();
   }, [id]);
 
@@ -58,7 +60,7 @@ const ChallanDetailsPage = () => {
       if (!response.ok) {
         throw new Error('Failed to update status');
       }
-      fetchChallanDetails(); // Refresh the data
+      setChallan(prev => ({ ...prev, status: newStatus }));
     } catch (err) {
       setError(err.message);
     }
@@ -66,8 +68,8 @@ const ChallanDetailsPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex justify-center items-center h-64">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -81,18 +83,13 @@ const ChallanDetailsPage = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <Alert 
-            type="error" 
-            title="Error Loading Challan"
-            message={error}
-            show={true}
-          />
-          <div className="mt-6 text-center">
-            <Button variant="outline" onClick={() => navigate('/challans')}>
-              Back to Challans
-            </Button>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Alert variant="error">
+            {error}
+          </Alert>
+          <div className="mt-4 text-center">
+            <Button onClick={() => navigate('/challans')} variant="secondary">Back to Challans</Button>
           </div>
         </div>
       </div>
@@ -101,18 +98,11 @@ const ChallanDetailsPage = () => {
 
   if (!challan) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <Alert 
-            type="error" 
-            title="Challan Not Found"
-            message="The requested challan could not be found."
-            show={true}
-          />
-          <div className="mt-6 text-center">
-            <Button variant="outline" onClick={() => navigate('/challans')}>
-              Back to Challans
-            </Button>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center">
+            <p className="text-gray-600">Challan not found</p>
+            <Button onClick={() => navigate('/challans')} variant="secondary" className="mt-4">Back to Challans</Button>
           </div>
         </div>
       </div>
@@ -120,251 +110,398 @@ const ChallanDetailsPage = () => {
   }
 
   const getStatusColor = (status) => {
-    switch (status.toLowerCase()) {
-      case 'generated':
-        return 'bg-blue-100 text-blue-800';
-      case 'in-transit':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'delivered':
-        return 'bg-green-100 text-green-800';
-      case 'cancelled':
-        return 'bg-red-100 text-red-800';
+    switch (status) {
+      case 'Active': return 'bg-green-100 text-green-800 border-green-200';
+      case 'Completed': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'Cancelled': return 'bg-red-100 text-red-800 border-red-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'Active':
+        return (
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        );
+      case 'Completed':
+        return (
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+        );
+      case 'Cancelled':
+        return (
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        );
       default:
-        return 'bg-gray-100 text-gray-800';
+        return (
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        );
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Modern Header */}
+        <div 
+          className="mb-8"
+          style={{
+            animationDelay: '0ms',
+            animation: isVisible ? 'slideInDown 0.6s ease-out forwards' : 'none'
+          }}
+        >
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <Button
-                variant="outline"
-                onClick={() => navigate('/challans')}
-                className="flex items-center space-x-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl flex items-center justify-center shadow-lg">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                <span>Back</span>
-              </Button>
+              </div>
               <div>
-                <h1 className="text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 bg-clip-text text-transparent">
-                  {challan.challanNumber}
-                </h1>
-                <p className="text-sm text-gray-600 mt-1">
-                  Generated on {format(new Date(challan.dateGenerated), 'MMM dd, yyyy')}
-                </p>
+                <h1 className="text-3xl font-bold text-gray-900">Challan Details</h1>
+                <p className="text-gray-600 mt-1">Challan #{challan.challanNumber} • {format(new Date(challan.createdAt), 'MMM dd, yyyy')}</p>
               </div>
             </div>
             <div className="flex items-center space-x-3">
-              <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${getStatusColor(challan.status)}`}>
-                {challan.status}
-              </span>
-              <Button variant="outline" size="xs">
-                Print
-              </Button>
-              <Button variant="outline" size="xs">
-                Edit
-              </Button>
-              <Button variant="danger" size="xs" onClick={handleDelete}>
-                Delete
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Status Update Section */}
-        <ChallanCard 
-          title="Update Status"
-          subtitle="Change the current status of this challan"
-          icon={
-            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-          }
-          className="mb-6"
-        >
-          <div className="flex flex-wrap gap-2">
-            {['Generated', 'In-Transit', 'Delivered', 'Cancelled'].map((status) => (
-              <Button
-                key={status}
-                variant={challan.status === status ? "primary" : "outline"}
-                size="xs"
-                onClick={() => handleStatusUpdate(status)}
-                disabled={challan.status === status}
+              <div className={`flex items-center space-x-2 px-3 py-2 rounded-lg border ${getStatusColor(challan.status)}`}>
+                {getStatusIcon(challan.status)}
+                <span className="text-sm font-medium">{challan.status}</span>
+              </div>
+              <button
+                onClick={() => navigate('/challans')}
+                className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:text-gray-900 hover:bg-white/50 rounded-lg transition-all duration-200"
               >
-                {status}
-              </Button>
-            ))}
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                <span>Back to Challans</span>
+              </button>
+            </div>
           </div>
-        </ChallanCard>
-
-        {/* Summary Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <StatsCard
-            title="Total Packages"
-            value={challan.totalPackages}
-            subtitle="Total packages in challan"
-            icon={
-              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-              </svg>
-            }
-            color="blue"
-          />
-          <StatsCard
-            title="Total Weight"
-            value={`${challan.totalWeight} kg`}
-            subtitle="Total weight in challan"
-            icon={
-              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
-              </svg>
-            }
-            color="green"
-          />
-          <StatsCard
-            title="Total Charges"
-            value={`₹${challan.totalCharges}`}
-            subtitle="Total charges in challan"
-            icon={
-              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-              </svg>
-            }
-            color="purple"
-          />
         </div>
 
-        {/* Transport Details */}
-        <ChallanCard 
-          title="Transport Details"
-          subtitle="Vehicle, driver, and route information"
-          icon={
-            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-            </svg>
-          }
-          className="mb-6"
-        >
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div>
-              <h4 className="text-sm font-medium text-gray-500 mb-2">Transport Company</h4>
-              <p className="text-lg font-semibold text-gray-900">
-                {challan.transportCompany?.name || 'N/A'}
-              </p>
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          {/* Left Column - Main Details */}
+          <div className="xl:col-span-2 space-y-6">
+            {/* Challan Information */}
+            <div 
+              className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
+              style={{
+                animationDelay: '200ms',
+                animation: isVisible ? 'slideInUp 0.6s ease-out forwards' : 'none'
+              }}
+            >
+              <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4">
+                <div className="flex items-center space-x-3">
+                  <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">Challan Information</h3>
+                    <p className="text-blue-100 text-sm">Transport and delivery details</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500 mb-1">Challan Number</label>
+                      <div className="text-lg font-semibold text-gray-900">#{challan.challanNumber}</div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500 mb-1">Transport Company</label>
+                      <div className="text-gray-900">{challan.transportCompany?.name || 'N/A'}</div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500 mb-1">Vehicle</label>
+                      <div className="text-gray-900">
+                        {challan.truck ? `Truck #${challan.truck.vehicleNumber}` : 'N/A'}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500 mb-1">Driver</label>
+                      <div className="text-gray-900">{challan.driver?.name || 'N/A'}</div>
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500 mb-1">From Location</label>
+                      <div className="text-gray-900">{challan.fromLocation || 'Not specified'}</div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500 mb-1">To Location</label>
+                      <div className="text-gray-900">{challan.toLocation || 'Not specified'}</div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500 mb-1">Created Date</label>
+                      <div className="text-gray-900">{format(new Date(challan.createdAt), 'MMM dd, yyyy HH:mm')}</div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500 mb-1">Status</label>
+                      <div className={`inline-flex items-center space-x-2 px-3 py-1 rounded-lg border ${getStatusColor(challan.status)}`}>
+                        {getStatusIcon(challan.status)}
+                        <span className="text-sm font-medium">{challan.status}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {challan.notes && (
+                  <div className="mt-6 pt-6 border-t border-gray-200">
+                    <label className="block text-sm font-medium text-gray-500 mb-2">Notes</label>
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <p className="text-gray-900">{challan.notes}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-            <div>
-              <h4 className="text-sm font-medium text-gray-500 mb-2">Vehicle</h4>
-              <p className="text-lg font-semibold text-gray-900">
-                Truck #{challan.truck?.vehicleNumber || 'N/A'}
-              </p>
-              <p className="text-sm text-gray-600">
-                {challan.truck?.make} {challan.truck?.model}
-              </p>
-            </div>
-            <div>
-              <h4 className="text-sm font-medium text-gray-500 mb-2">Driver</h4>
-              <p className="text-lg font-semibold text-gray-900">
-                {challan.driver?.name || 'N/A'}
-              </p>
-              <p className="text-sm text-gray-600">
-                {challan.driver?.phone || 'N/A'}
-              </p>
-            </div>
-            <div>
-              <h4 className="text-sm font-medium text-gray-500 mb-2">From Location</h4>
-              <p className="text-lg font-semibold text-gray-900">
-                {challan.fromLocation || 'Not specified'}
-              </p>
-            </div>
-            <div>
-              <h4 className="text-sm font-medium text-gray-500 mb-2">To Location</h4>
-              <p className="text-lg font-semibold text-gray-900">
-                {challan.toLocation || 'Not specified'}
-              </p>
-            </div>
-            <div>
-              <h4 className="text-sm font-medium text-gray-500 mb-2">Notes</h4>
-              <p className="text-lg font-semibold text-gray-900">
-                {challan.notes || 'No notes'}
-              </p>
+
+            {/* GRs in Challan */}
+            <div 
+              className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
+              style={{
+                animationDelay: '300ms',
+                animation: isVisible ? 'slideInUp 0.6s ease-out forwards' : 'none'
+              }}
+            >
+              <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-white">GRs in Challan</h3>
+                      <p className="text-emerald-100 text-sm">{challan.challanGoods?.length || 0} GRs included</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="p-6">
+                {challan.challanGoods && challan.challanGoods.length > 0 ? (
+                  <div className="space-y-3">
+                    {challan.challanGoods.map((challanGood, index) => (
+                      <div
+                        key={challanGood.id}
+                        className="p-4 border border-gray-200 rounded-xl hover:shadow-md transition-all duration-200"
+                        style={{
+                          animationDelay: `${400 + (index * 100)}ms`,
+                          animation: isVisible ? 'slideInUp 0.6s ease-out forwards' : 'none'
+                        }}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-4">
+                            <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
+                              <span className="text-emerald-600 font-semibold text-sm">
+                                {index + 1}
+                              </span>
+                            </div>
+                            <div>
+                              <div className="font-semibold text-gray-900">
+                                GR: {challanGood.booking?.grNumber || 'N/A'}
+                              </div>
+                              <div className="text-sm text-gray-600">
+                                {challanGood.booking?.destinationLocation || 'N/A'}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-medium text-gray-900">
+                              {challanGood.quantity} packages
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              {challanGood.weight} kg
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                      </svg>
+                    </div>
+                    <p className="text-gray-500">No GRs found in this challan</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </ChallanCard>
 
-        {/* GR Details */}
-        <ChallanCard 
-          title="GR Details"
-          subtitle={`${challan.challanGoods?.length || 0} GR(s) included in this challan`}
-          icon={
-            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-          }
-        >
-          {challan.challanGoods && challan.challanGoods.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Serial No.
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      GR Number
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Packages
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Weight
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Destination
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Charges
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {challan.challanGoods.map((item, index) => (
-                    <tr key={item.id} className="hover:bg-gray-50 transition-colors duration-200">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {item.serialNumber}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {item.booking?.grNumber || 'N/A'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {item.packages}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {item.weight} kg
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {item.destinationLocation}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
-                        ₹{item.charges}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          {/* Right Column - Summary & Actions */}
+          <div className="xl:col-span-1 space-y-6">
+            {/* Summary Stats */}
+            <div 
+              className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
+              style={{
+                animationDelay: '400ms',
+                animation: isVisible ? 'slideInUp 0.6s ease-out forwards' : 'none'
+              }}
+            >
+              <div className="bg-gradient-to-r from-orange-600 to-red-600 px-6 py-4">
+                <div className="flex items-center space-x-3">
+                  <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">Summary</h3>
+                    <p className="text-orange-100 text-sm">Challan totals</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="p-6 space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Total Packages</span>
+                  <span className="font-semibold text-gray-900">{challan.totalPackages || 0}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Total Weight</span>
+                  <span className="font-semibold text-gray-900">{challan.totalWeight || 0} kg</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Total Charges</span>
+                  <span className="font-semibold text-gray-900">₹{(challan.totalCharges || 0).toLocaleString()}</span>
+                </div>
+                <div className="border-t border-gray-200 pt-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">GRs Count</span>
+                    <span className="font-semibold text-gray-900">{challan.challanGoods?.length || 0}</span>
+                  </div>
+                </div>
+              </div>
             </div>
-          ) : (
-            <div className="text-center py-8 text-gray-500">
-              No GR details available for this challan
+
+            {/* Status Management */}
+            <div 
+              className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
+              style={{
+                animationDelay: '500ms',
+                animation: isVisible ? 'slideInUp 0.6s ease-out forwards' : 'none'
+              }}
+            >
+              <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-4">
+                <div className="flex items-center space-x-3">
+                  <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">Status Management</h3>
+                    <p className="text-purple-100 text-sm">Update challan status</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="p-6 space-y-3">
+                {challan.status !== 'Active' && (
+                  <button
+                    onClick={() => handleStatusUpdate('Active')}
+                    className="w-full bg-green-600 text-white py-2.5 px-4 rounded-lg font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:ring-offset-2 transition-all duration-200"
+                  >
+                    Mark as Active
+                  </button>
+                )}
+                {challan.status !== 'Completed' && (
+                  <button
+                    onClick={() => handleStatusUpdate('Completed')}
+                    className="w-full bg-blue-600 text-white py-2.5 px-4 rounded-lg font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:ring-offset-2 transition-all duration-200"
+                  >
+                    Mark as Completed
+                  </button>
+                )}
+                {challan.status !== 'Cancelled' && (
+                  <button
+                    onClick={() => handleStatusUpdate('Cancelled')}
+                    className="w-full bg-red-600 text-white py-2.5 px-4 rounded-lg font-medium hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:ring-offset-2 transition-all duration-200"
+                  >
+                    Mark as Cancelled
+                  </button>
+                )}
+              </div>
             </div>
-          )}
-        </ChallanCard>
+
+            {/* Action Buttons */}
+            <div 
+              className="space-y-3"
+              style={{
+                animationDelay: '600ms',
+                animation: isVisible ? 'slideInUp 0.6s ease-out forwards' : 'none'
+              }}
+            >
+              <button
+                onClick={() => navigate(`/challans/${id}/edit`)}
+                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 px-4 rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:ring-offset-2 transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <div className="flex items-center justify-center space-x-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  <span>Edit Challan</span>
+                </div>
+              </button>
+              
+              <button
+                onClick={handleDelete}
+                className="w-full bg-white text-red-600 py-3 px-4 rounded-xl font-semibold border border-red-200 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:ring-offset-2 transition-all duration-200"
+              >
+                <div className="flex items-center justify-center space-x-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  <span>Delete Challan</span>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
+
+      <style jsx>{`
+        @keyframes slideInDown {
+          from {
+            opacity: 0;
+            transform: translateY(-30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        @keyframes slideInUp {
+          from {
+            opacity: 0;
+            transform: translateY(30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
     </div>
   );
 };

@@ -49,18 +49,26 @@ router.post('/generate', async (req, res) => {
       const commissionRate = transporter.commissionRate || 0; // This is rupees per kg
       const commissionAmount = booking.weightKg * commissionRate;
       
-      // Use the actual total charges from the booking for billing
-      const totalDue = booking.totalCharges || 0;
+      // Calculate local cartage charges
+      const localCartageCharges = booking.localCartageCharges || 0;
       
-      // Calculate paid amount based on payment method
-      const paidAmount = booking.paymentMethod === 'Paid' ? booking.totalCharges : 0;
+      // Total due = Commission + Local Cartage (this is what we owe the transporter)
+      const totalDue = commissionAmount + localCartageCharges;
       
-      // Calculate remaining amount (this will be 0 if paid, or totalCharges if not paid)
+      // Calculate paid amount based on payment method and payment type
+      // If customer paid via Cash or UPI, that amount is deducted from our commission
+      // If customer paid via Cheque, it goes directly to transporter, so no deduction
+      const paidAmount = (booking.paymentMethod === 'Paid' && booking.paymentType !== 'Cheque') 
+        ? (booking.totalCharges || 0) 
+        : 0;
+      
+      // Calculate remaining amount (total due minus what customer paid)
       const remainingAmount = totalDue - paidAmount;
       
       return {
         ...booking,
         commissionAmount,
+        localCartageCharges,
         totalDue,
         paidAmount,
         remainingAmount
@@ -69,7 +77,6 @@ router.post('/generate', async (req, res) => {
     
     // Calculate totals
     const totalWeight = bookings.reduce((sum, booking) => sum + booking.weightKg, 0);
-    const totalAmount = billItems.reduce((sum, item) => sum + item.totalAmount, 0);
     const totalCommission = billItems.reduce((sum, item) => sum + item.commissionAmount, 0);
     const totalLocalCartage = billItems.reduce((sum, item) => sum + item.localCartageCharges, 0);
     const totalPaid = billItems.reduce((sum, item) => sum + item.paidAmount, 0);
@@ -86,7 +93,6 @@ router.post('/generate', async (req, res) => {
       summary: {
         totalBookings: bookings.length,
         totalWeight,
-        totalAmount,
         totalCommission,
         totalLocalCartage,
         totalPaid,
@@ -144,18 +150,26 @@ router.get('/transporter/:transporterId', async (req, res) => {
       const commissionRate = transporter.commissionRate || 0; // This is rupees per kg
       const commissionAmount = booking.weightKg * commissionRate;
       
-      // Use the actual total charges from the booking for billing
-      const totalDue = booking.totalCharges || 0;
+      // Calculate local cartage charges
+      const localCartageCharges = booking.localCartageCharges || 0;
       
-      // Calculate paid amount based on payment method
-      const paidAmount = booking.paymentMethod === 'Paid' ? booking.totalCharges : 0;
+      // Total due = Commission + Local Cartage (this is what we owe the transporter)
+      const totalDue = commissionAmount + localCartageCharges;
       
-      // Calculate remaining amount (this will be 0 if paid, or totalCharges if not paid)
+      // Calculate paid amount based on payment method and payment type
+      // If customer paid via Cash or UPI, that amount is deducted from our commission
+      // If customer paid via Cheque, it goes directly to transporter, so no deduction
+      const paidAmount = (booking.paymentMethod === 'Paid' && booking.paymentType !== 'Cheque') 
+        ? (booking.totalCharges || 0) 
+        : 0;
+      
+      // Calculate remaining amount (total due minus what customer paid)
       const remainingAmount = totalDue - paidAmount;
       
       return {
         ...booking,
         commissionAmount,
+        localCartageCharges,
         totalDue,
         paidAmount,
         remainingAmount

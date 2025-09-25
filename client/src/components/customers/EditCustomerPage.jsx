@@ -12,6 +12,7 @@ const EditCustomerPage = () => {
     name: '',
     address: '',
     gstNumber: '',
+    panNumber: '',
     phone: '',
     email: '',
     contactPerson: '',
@@ -40,6 +41,7 @@ const EditCustomerPage = () => {
         name: customerData.name || '',
         address: customerData.address || '',
         gstNumber: customerData.gstNumber || '',
+        panNumber: customerData.panNumber || '',
         phone: customerData.phone || '',
         email: customerData.email || '',
         contactPerson: customerData.contactPerson || '',
@@ -66,6 +68,15 @@ const EditCustomerPage = () => {
       [name]: value
     }));
     
+    // Clear PAN number when GST number is not 'URP'
+    if (name === 'gstNumber' && value.toUpperCase() !== 'URP') {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value,
+        panNumber: ''
+      }));
+    }
+    
     // Clear error when user starts typing
     if (errors[name]) {
       setErrors(prev => ({
@@ -81,6 +92,16 @@ const EditCustomerPage = () => {
     if (!formData.name.trim()) newErrors.name = 'Name is required';
     if (!formData.address.trim()) newErrors.address = 'Address is required';
     if (!formData.gstNumber.trim()) newErrors.gstNumber = 'GST number is required';
+    
+    // Validate PAN number if GST number is 'URP'
+    if (formData.gstNumber.toUpperCase() === 'URP' && !formData.panNumber.trim()) {
+      newErrors.panNumber = 'PAN number is required when GST number is URP';
+    }
+    
+    // Validate PAN number format (10 characters: 5 letters, 4 digits, 1 letter)
+    if (formData.panNumber && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(formData.panNumber.toUpperCase())) {
+      newErrors.panNumber = 'Please enter a valid PAN number (e.g., ABCDE1234F)';
+    }
     
     if (formData.email && !/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = 'Please enter a valid email address';
@@ -239,12 +260,38 @@ const EditCustomerPage = () => {
                     className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm ${
                       errors.gstNumber ? 'border-red-300' : ''
                     }`}
-                    placeholder="Enter GST number"
+                    placeholder="Enter GST number or 'URP' for unregistered persons"
                   />
                   {errors.gstNumber && (
                     <p className="text-xs text-red-600">{errors.gstNumber}</p>
                   )}
                 </div>
+
+                {/* PAN Number field - only visible when GST is 'URP' */}
+                {formData.gstNumber.toUpperCase() === 'URP' && (
+                  <div className="space-y-1">
+                    <label className="block text-xs font-semibold text-gray-700">
+                      PAN Number <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="panNumber"
+                      value={formData.panNumber}
+                      onChange={handleChange}
+                      className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm uppercase ${
+                        errors.panNumber ? 'border-red-300' : ''
+                      }`}
+                      placeholder="Enter PAN number (e.g., ABCDE1234F)"
+                      maxLength="10"
+                    />
+                    {errors.panNumber && (
+                      <p className="text-xs text-red-600">{errors.panNumber}</p>
+                    )}
+                    <p className="text-xs text-gray-500">
+                      Required for customers without GST number (URP)
+                    </p>
+                  </div>
+                )}
 
                 <div className="space-y-1">
                   <label className="block text-xs font-semibold text-gray-700">

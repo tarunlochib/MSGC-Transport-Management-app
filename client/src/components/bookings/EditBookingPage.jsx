@@ -23,6 +23,7 @@ const EditBookingPage = () => {
   const [vehicles, setVehicles] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [customers, setCustomers] = useState([]);
+  const [godowns, setGodowns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -41,6 +42,7 @@ const EditBookingPage = () => {
     ewayBill: '',
     privateMarka: '',
     paymentMethod: '',
+    paymentType: '',
     deliveryAgainst: '',
     freightCharges: '',
     localCartageCharges: '',
@@ -54,6 +56,7 @@ const EditBookingPage = () => {
     driverId: '',
     consignorId: '',
     consigneeId: '',
+    godownId: '',
     packages: [],
     invoices: [],
     totalWeight: ''
@@ -75,10 +78,10 @@ const EditBookingPage = () => {
   }, []);
 
   useEffect(() => {
-    if (id) {
+    if (id && transporters.length > 0) {
       fetchBooking();
     }
-  }, [id]);
+  }, [id, transporters]);
 
   const fetchData = async () => {
     try {
@@ -94,6 +97,19 @@ const EditBookingPage = () => {
       setCustomers(customersRes.data);
     } catch (error) {
       console.error('Error fetching data:', error);
+    }
+  };
+
+  // Fetch godowns when transporter is selected
+  const fetchGodowns = async (transporterId) => {
+    try {
+      console.log('Fetching godowns for transporter ID:', transporterId);
+      const response = await axios.get(`/api/godowns/transporter/${transporterId}`);
+      console.log('Godowns response:', response.data);
+      setGodowns(response.data);
+    } catch (error) {
+      console.error('Error fetching godowns:', error);
+      setGodowns([]);
     }
   };
 
@@ -116,6 +132,7 @@ const EditBookingPage = () => {
         ewayBill: booking.ewayBill || '',
         privateMarka: booking.privateMarka || '',
         paymentMethod: booking.paymentMethod || '',
+        paymentType: booking.paymentType || '',
         deliveryAgainst: booking.deliveryAgainst || '',
         freightCharges: booking.freightCharges || '',
         localCartageCharges: booking.localCartageCharges || '',
@@ -129,10 +146,26 @@ const EditBookingPage = () => {
         driverId: booking.driverId || '',
         consignorId: booking.consignorId || '',
         consigneeId: booking.consigneeId || '',
+        godownId: booking.godownId || '',
         packages: booking.packages || [],
         invoices: booking.invoices || [],
         totalWeight: booking.weightKg || ''
       });
+
+      // Fetch godowns if this is the specific transporter
+      if (booking.transporterId) {
+        const selectedTransporter = transporters.find(t => t.id === booking.transporterId);
+        console.log('Selected transporter:', selectedTransporter);
+        console.log('Contact info:', selectedTransporter?.contactInfo);
+        
+        if (selectedTransporter && selectedTransporter.contactInfo && 
+            selectedTransporter.contactInfo.includes('07AAUCS4940E1Z1')) {
+          console.log('Fetching godowns for transporter:', selectedTransporter.name);
+          await fetchGodowns(booking.transporterId);
+        } else {
+          console.log('Not the target transporter or no contact info');
+        }
+      }
     } catch (error) {
       console.error('Error fetching booking:', error);
       setError('Failed to load booking details');
@@ -204,6 +237,20 @@ const EditBookingPage = () => {
     }
   };
 
+  // Handle transporter change
+  const handleTransporterChange = (transporterId) => {
+    setFormData(prev => ({ ...prev, transporterId, godownId: '' }));
+    
+    // Check if this is the specific transporter that needs godown selection
+    const selectedTransporter = transporters.find(t => t.id === transporterId);
+    if (selectedTransporter && selectedTransporter.contactInfo && 
+        selectedTransporter.contactInfo.includes('07AAUCS4940E1Z1')) {
+      fetchGodowns(transporterId);
+    } else {
+      setGodowns([]);
+    }
+  };
+
   const calculateTotalCharges = () => {
     const freight = parseFloat(formData.freightCharges) || 0;
     const localCartage = parseFloat(formData.localCartageCharges) || 0;
@@ -212,7 +259,8 @@ const EditBookingPage = () => {
     const labour = parseFloat(formData.labourCharges) || 0;
     const other = parseFloat(formData.otherCharges) || 0;
     
-    return (freight + localCartage + doorDelivery + stationary + labour + other).toFixed(2);
+    const total = freight + localCartage + doorDelivery + stationary + labour + other;
+    return total % 1 === 0 ? total.toString() : total.toFixed(2);
   };
 
   const nextStep = () => {
@@ -230,7 +278,12 @@ const EditBookingPage = () => {
   const isStepValid = (step) => {
     switch (step) {
       case 1:
-        return formData.grNumber && formData.bookingDate && formData.transporterId;
+        const basicValid = formData.grNumber && formData.bookingDate && formData.transporterId;
+        // If godowns are available (specific transporter), godown selection is required
+        if (godowns.length > 0) {
+          return basicValid && formData.godownId;
+        }
+        return basicValid;
       case 2:
         return formData.packages.length > 0;
       case 3:
@@ -251,7 +304,15 @@ const EditBookingPage = () => {
   const renderStepContent = () => {
     switch (currentStep) {
       case 1:
-        return <BasicDetailsStep formData={formData} setFormData={setFormData} transporters={transporters} />;
+        return (
+          <BasicDetailsStep 
+            formData={formData} 
+            setFormData={setFormData} 
+            transporters={transporters}
+            godowns={godowns}
+            onTransporterChange={handleTransporterChange}
+          />
+        );
       case 2:
         return <PackagesStep formData={formData} setFormData={setFormData} />;
       case 3:

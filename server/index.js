@@ -21,6 +21,10 @@ const expenseRoutes = require('./routes/expenses');
 const billingRoutes = require('./routes/billing');
 const customerRoutes = require('./routes/customers');
 const challanRoutes = require('./routes/challans');
+const incomeRoutes = require('./routes/income');
+const weightMigrationRoutes = require('./routes/weight-migration');
+const godownRoutes = require('./routes/godowns');
+const stockExceptionsRoutes = require('./routes/stock-exceptions');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/transporters', transporterRoutes);
@@ -31,6 +35,10 @@ app.use('/api/expenses', expenseRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/challans', challanRoutes);
+app.use('/api/income', incomeRoutes);
+app.use('/api/migration', weightMigrationRoutes);
+app.use('/api/godowns', godownRoutes);
+app.use('/api/stock-exceptions', stockExceptionsRoutes);
 
 // Test route
 app.get('/api/test', async (req, res) => {

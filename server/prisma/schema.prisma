@@ -23,7 +23,8 @@ model Customer {
   id                String    @id @default(cuid())
   name              String
   address           String
-  gstNumber         String    @unique
+  gstNumber         String
+  panNumber         String?
   phone             String?
   email             String?
   contactPerson     String?
@@ -53,6 +54,8 @@ model Transporter {
   bookings       Booking[]
   vehicles       Vehicle[]
   challans       Challan[]
+  income         Income[]
+  godowns        Godown[]
 
   @@map("transporters")
 }
@@ -127,6 +130,7 @@ model Booking {
   toLocation          String
   ewayBill            String?
   paymentMethod       String
+  paymentType         String?     // Cash, UPI, Cheque (only when paymentMethod is "Paid")
   totalAmount         Float
   paidAmount          Float       @default(0)
   deliveryAgainst     String
@@ -143,6 +147,7 @@ model Booking {
   driverId            String?
   consignorId         String?
   consigneeId         String?
+  godownId            String?
   createdAt           DateTime    @default(now())
   updatedAt           DateTime    @updatedAt
   privateMarka        String?
@@ -151,6 +156,7 @@ model Booking {
   driver              Driver?     @relation(fields: [driverId], references: [id])
   vehicle             Vehicle?    @relation(fields: [vehicleId], references: [id])
   transporter         Transporter @relation(fields: [transporterId], references: [id], onDelete: Cascade)
+  godown              Godown?     @relation(fields: [godownId], references: [id])
   invoices            Invoice[]
   packages            Package[]
   challanGoods        ChallanGoods[]
@@ -242,4 +248,38 @@ model ChallanGoods {
   booking            Booking  @relation(fields: [bookingId], references: [id])
 
   @@map("challan_goods")
+}
+
+model Income {
+  id              String   @id @default(cuid())
+  date            DateTime
+  amount          Float
+  source          String
+  description     String?
+  category        String
+  paymentMethod   String   @default("cash")
+  referenceNumber String?
+  status          String   @default("Received")
+  transporterId   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  transporter     Transporter? @relation(fields: [transporterId], references: [id])
+
+  @@map("income")
+}
+
+model Godown {
+  id            String   @id @default(cuid())
+  name          String
+  transporterId String
+  cities        String   // JSON string of cities array
+  status        String   @default("Active")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  transporter   Transporter @relation(fields: [transporterId], references: [id])
+  bookings      Booking[]
+
+  @@map("godowns")
 }

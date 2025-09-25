@@ -66,12 +66,17 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Date, expense type, and amount are required' });
     }
     
-    const validExpenseTypes = ['fuel', 'toll', 'maintenance', 'misc'];
+    const validExpenseTypes = [
+      'fuel', 'toll', 'maintenance', 'insurance', 'mobile_internet', 
+      'household', 'emi', 'labour', 'salary', 'office_rent', 'utilities', 
+      'marketing', 'legal', 'travel', 'stationery', 'repairs', 'taxes', 
+      'bank_charges', 'gaadi_bhaada', 'misc'
+    ];
     if (!validExpenseTypes.includes(expenseType)) {
-      return res.status(400).json({ error: 'Invalid expense type. Must be fuel, toll, maintenance, or misc' });
+      return res.status(400).json({ error: 'Invalid expense type' });
     }
 
-    const validPaymentMethods = ['cash', 'card', 'upi', 'bank_transfer', 'cheque'];
+    const validPaymentMethods = ['cash', 'card', 'upi', 'net_banking', 'cheque'];
     if (paymentMethod && !validPaymentMethods.includes(paymentMethod)) {
       return res.status(400).json({ error: 'Invalid payment method' });
     }
@@ -120,12 +125,17 @@ router.put('/:id', async (req, res) => {
       return res.status(400).json({ error: 'Date, expense type, and amount are required' });
     }
     
-    const validExpenseTypes = ['fuel', 'toll', 'maintenance', 'misc'];
+    const validExpenseTypes = [
+      'fuel', 'toll', 'maintenance', 'insurance', 'mobile_internet', 
+      'household', 'emi', 'labour', 'salary', 'office_rent', 'utilities', 
+      'marketing', 'legal', 'travel', 'stationery', 'repairs', 'taxes', 
+      'bank_charges', 'gaadi_bhaada', 'misc'
+    ];
     if (!validExpenseTypes.includes(expenseType)) {
-      return res.status(400).json({ error: 'Invalid expense type. Must be fuel, toll, maintenance, or misc' });
+      return res.status(400).json({ error: 'Invalid expense type' });
     }
 
-    const validPaymentMethods = ['cash', 'card', 'upi', 'bank_transfer', 'cheque'];
+    const validPaymentMethods = ['cash', 'card', 'upi', 'net_banking', 'cheque'];
     if (paymentMethod && !validPaymentMethods.includes(paymentMethod)) {
       return res.status(400).json({ error: 'Invalid payment method' });
     }

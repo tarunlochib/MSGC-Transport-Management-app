@@ -53,6 +53,12 @@ const ExpenseModal = ({ expense, vehicles, onSubmit, onClose }) => {
       newErrors.amount = 'Amount must be greater than 0';
     }
     
+    // Vehicle is required only for vehicle-related expenses
+    const vehicleRelatedExpenses = ['fuel', 'toll', 'maintenance', 'insurance'];
+    if (vehicleRelatedExpenses.includes(formData.expenseType) && !formData.vehicleId) {
+      newErrors.vehicleId = 'Vehicle is required for this expense type';
+    }
+    
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -76,7 +82,22 @@ const ExpenseModal = ({ expense, vehicles, onSubmit, onClose }) => {
   };
 
   const handleInputChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    // Clear vehicle field when switching to non-vehicle expense type
+    if (field === 'expenseType') {
+      const vehicleRelatedExpenses = ['fuel', 'toll', 'maintenance', 'insurance'];
+      if (!vehicleRelatedExpenses.includes(value)) {
+        setFormData(prev => ({
+          ...prev,
+          [field]: value,
+          vehicleId: '' // Clear vehicle selection
+        }));
+      } else {
+        setFormData(prev => ({ ...prev, [field]: value }));
+      }
+    } else {
+      setFormData(prev => ({ ...prev, [field]: value }));
+    }
+    
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
@@ -157,8 +178,24 @@ const ExpenseModal = ({ expense, vehicles, onSubmit, onClose }) => {
                 <option value="">Select type</option>
                 <option value="fuel">Fuel</option>
                 <option value="toll">Toll & Permits</option>
-                <option value="maintenance">Maintenance</option>
-                <option value="misc">Miscellaneous</option>
+                <option value="maintenance">Vehicle Maintenance</option>
+                <option value="insurance">Insurance</option>
+                <option value="mobile_internet">Mobile & Internet</option>
+                <option value="household">Household</option>
+                <option value="emi">EMIs</option>
+                <option value="labour">Labour Payment</option>
+                <option value="salary">Salary</option>
+                <option value="office_rent">Office Rent</option>
+                <option value="utilities">Utilities</option>
+                <option value="marketing">Marketing & Advertising</option>
+                <option value="legal">Legal & Professional</option>
+                <option value="travel">Travel & Accommodation</option>
+                <option value="stationery">Stationery & Supplies</option>
+                <option value="repairs">Repairs & Renovation</option>
+                <option value="taxes">Taxes & Compliance</option>
+            <option value="bank_charges">Bank Charges</option>
+            <option value="gaadi_bhaada">Gaadi Bhaada</option>
+            <option value="misc">Miscellaneous</option>
               </select>
               {errors.expenseType && (
                 <p className="text-xs text-red-600">{errors.expenseType}</p>
@@ -189,24 +226,29 @@ const ExpenseModal = ({ expense, vehicles, onSubmit, onClose }) => {
               )}
             </div>
 
-            {/* Vehicle */}
-            <div className="space-y-1">
-              <label className="block text-xs font-semibold text-gray-700">
-                Vehicle
-              </label>
-              <select
-                value={formData.vehicleId}
-                onChange={(e) => handleInputChange('vehicleId', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm appearance-none bg-white"
-              >
-                <option value="">Select vehicle</option>
-                {vehicles.map((vehicle) => (
-                  <option key={vehicle.id} value={vehicle.id}>
-                    {vehicle.vehicleNumber} - {vehicle.type}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Vehicle - Only show for vehicle-related expenses */}
+            {['fuel', 'toll', 'maintenance', 'insurance'].includes(formData.expenseType) && (
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-gray-700">
+                  Vehicle <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.vehicleId}
+                  onChange={(e) => handleInputChange('vehicleId', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm appearance-none bg-white"
+                >
+                  <option value="">Select vehicle</option>
+                  {vehicles.map((vehicle) => (
+                    <option key={vehicle.id} value={vehicle.id}>
+                      {vehicle.vehicleNumber} - {vehicle.type}
+                    </option>
+                  ))}
+                </select>
+                {errors.vehicleId && (
+                  <p className="text-xs text-red-600">{errors.vehicleId}</p>
+                )}
+              </div>
+            )}
 
             {/* Payment Method */}
             <div className="space-y-1">

@@ -10,40 +10,33 @@ const StatsCard = ({
   onClick
 }) => {
   const colorClasses = {
-    blue: "from-blue-500 to-blue-600 text-blue-600",
-    green: "from-green-500 to-green-600 text-green-600",
-    purple: "from-purple-500 to-purple-600 text-purple-600",
-    orange: "from-orange-500 to-orange-600 text-orange-600",
-    red: "from-red-500 to-red-600 text-red-600"
+    blue: "bg-blue-50 text-blue-600 border-blue-200",
+    green: "bg-green-50 text-green-600 border-green-200",
+    purple: "bg-purple-50 text-purple-600 border-purple-200",
+    orange: "bg-orange-50 text-orange-600 border-orange-200",
+    red: "bg-red-50 text-red-600 border-red-200"
   };
 
   const colorClass = colorClasses[color];
 
   return (
     <div
-      className={`group relative overflow-hidden rounded-lg bg-white shadow-sm hover:shadow-md transition-all duration-300 transform hover:scale-105 hover:-translate-y-1 border border-gray-100 h-32 ${onClick ? 'cursor-pointer' : ''} ${className}`}
+      className={`rounded-lg border ${colorClass} p-4 ${onClick ? 'cursor-pointer hover:shadow-sm transition-shadow duration-200' : ''} ${className}`}
       onClick={onClick}
     >
-      {/* Gradient overlay on hover */}
-      <div className={`absolute inset-0 ${colorClass} opacity-0 group-hover:opacity-10 transition-opacity duration-300`}></div>
-      
-      <div className="relative p-4 h-full flex flex-col justify-between">
-        <div className="flex items-center justify-between">
-          <div className="flex-1">
-            <p className="text-xs font-medium text-gray-500 mb-1">{title}</p>
-            <p className={`text-lg font-bold text-gray-900 mb-1`}>{value}</p>
-            {subtitle && (
-              <p className="text-xs text-gray-500">{subtitle}</p>
-            )}
-          </div>
-          {icon && (
-            <div className={`w-8 h-8 bg-gradient-to-r ${colorClass} rounded-lg flex items-center justify-center ml-4 group-hover:scale-110 transition-transform duration-200`}>
-              <div className="w-4 h-4 text-white">
-                {icon}
-              </div>
-            </div>
+      <div className="flex items-center justify-between">
+        <div className="flex-1">
+          <p className="text-xs font-medium text-gray-500 mb-1">{title}</p>
+          <p className="text-xl font-bold text-gray-900">{value}</p>
+          {subtitle && (
+            <p className="text-xs text-gray-500 mt-1">{subtitle}</p>
           )}
         </div>
+        {icon && (
+          <div className="w-8 h-8 flex items-center justify-center">
+            {icon}
+          </div>
+        )}
       </div>
     </div>
   );

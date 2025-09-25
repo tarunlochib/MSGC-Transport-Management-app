@@ -39,7 +39,16 @@ import ViewDriverPage from './components/drivers/ViewDriverPage';
 // Import challan components
 import ChallansListPage from './components/challans/ChallansListPage';
 import CreateChallanPage from './components/challans/CreateChallanPage';
+import EditChallanPage from './components/challans/EditChallanPage';
 import ChallanDetailsPage from './components/challans/ChallanDetailsPage';
+
+// Import income components
+import IncomeListPage from './components/income/IncomeListPage';
+import CreateIncomePage from './components/income/CreateIncomePage';
+import EditIncomePage from './components/income/EditIncomePage';
+import MigrationPage from './components/bookings/MigrationPage';
+import WeightMigrationPage from './components/WeightMigrationPage';
+import StockExceptionsPage from './components/stock-exceptions/StockExceptionsPage';
 
 function App() {
   const { isAuthenticated, loading } = useAuth();
@@ -109,10 +118,19 @@ function App() {
                 {/* Billing */}
                 <Route path="/billing" element={<BillingPage />} />
                 
+                {/* Income */}
+            <Route path="/income" element={<IncomeListPage />} />
+            <Route path="/income/create" element={<CreateIncomePage />} />
+            <Route path="/income/:id/edit" element={<EditIncomePage />} />
+            <Route path="/migrate" element={<MigrationPage />} />
+            <Route path="/weight-migration" element={<WeightMigrationPage />} />
+            <Route path="/stock-exceptions" element={<StockExceptionsPage />} />
+                
                 {/* Challans */}
                 <Route path="/challans" element={<ChallansListPage />} />
                 <Route path="/challans/create" element={<CreateChallanPage />} />
                 <Route path="/challans/:id" element={<ChallanDetailsPage />} />
+                <Route path="/challans/:id/edit" element={<EditChallanPage />} />
                 
                 {/* Default redirect */}
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />

@@ -39,6 +39,17 @@ router.get('/', async (req, res) => {
         },
         driver: {
           select: { name: true }
+        },
+        challanGoods: {
+          include: {
+            booking: {
+              select: {
+                id: true,
+                grNumber: true,
+                godownId: true
+              }
+            }
+          }
         }
       },
       orderBy: {
@@ -97,7 +108,7 @@ router.get('/available-bookings', async (req, res) => {
         }
       },
       orderBy: {
-        createdAt: 'desc'
+        grNumber: 'asc'
       }
     });
 
@@ -113,8 +124,8 @@ router.get('/available-bookings', async (req, res) => {
         consigneeAddress: booking.consigneeAddress,
         fromLocation: booking.fromLocation,
         toLocation: booking.toLocation,
-        weight: booking.weightKg || 0,
-        charges: booking.totalCharges || 0,
+        weight: Math.round(booking.weightKg || 0),
+        charges: Math.round(booking.totalCharges || 0),
         packages: totalPackages || 1, // Use calculated packages or default to 1
         destinationLocation: booking.toLocation
       };
@@ -180,7 +191,7 @@ router.get('/:id', async (req, res) => {
 // Create new challan
 router.post('/', async (req, res) => {
   try {
-    const { transportCompanyId, truckId, driverId, fromLocation, toLocation, notes, selectedBookings } = req.body;
+    const { transportCompanyId, truckId, driverId, fromLocation, toLocation, notes, selectedBookings, challanNumber } = req.body;
 
     // Validate required fields
     if (!transportCompanyId || !truckId || !driverId || !selectedBookings || selectedBookings.length === 0) {
@@ -219,34 +230,49 @@ router.post('/', async (req, res) => {
       const bookingPackages = booking.packages.reduce((sum, pkg) => sum + (pkg.numberOfItems || 0), 0);
       
       totalPackages += bookingPackages || 1;
-      totalWeight += booking.weightKg || 0;
-      totalCharges += booking.totalCharges || 0;
+      totalWeight += Math.round(booking.weightKg || 0);
+      totalCharges += Math.round(booking.totalCharges || 0);
 
       return {
         bookingId: booking.id,
         serialNumber: index + 1,
         packages: bookingPackages || 1,
-        weight: booking.weightKg || 0,
+        weight: Math.round(booking.weightKg || 0),
         destinationLocation: booking.toLocation || toLocation || 'Not specified',
-        charges: booking.totalCharges || 0
+        charges: Math.round(booking.totalCharges || 0)
       };
     });
 
-    // Generate challan number
-    const challanNumber = await generateChallanNumber();
+    // Handle challan number - use custom or generate
+    let finalChallanNumber;
+    if (challanNumber && challanNumber.trim()) {
+      // Check if custom challan number already exists
+      const existingChallan = await prisma.challan.findUnique({
+        where: { challanNumber: challanNumber.trim() }
+      });
+      
+      if (existingChallan) {
+        return res.status(400).json({ error: 'Challan number already exists. Please use a different number.' });
+      }
+      
+      finalChallanNumber = challanNumber.trim();
+    } else {
+      // Generate automatic challan number
+      finalChallanNumber = await generateChallanNumber();
+    }
 
     // Create challan with goods
     const challan = await prisma.challan.create({
       data: {
-        challanNumber,
+        challanNumber: finalChallanNumber,
         transportCompanyId,
         truckId,
         driverId,
         fromLocation: fromLocation || 'Not specified',
         toLocation: toLocation || 'Not specified',
         totalPackages,
-        totalWeight,
-        totalCharges,
+        totalWeight: Math.round(totalWeight),
+        totalCharges: Math.round(totalCharges),
         notes,
         challanGoods: {
           create: challanGoodsData
@@ -280,6 +306,92 @@ router.post('/', async (req, res) => {
   } catch (error) {
     console.error('Error creating challan:', error);
     res.status(500).json({ error: 'Failed to create challan' });
+  }
+});
+
+// Update challan
+router.put('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { challanNumber, transportCompanyId, truckId, driverId, fromLocation, toLocation, notes } = req.body;
+
+    // Validate required fields
+    if (!transportCompanyId || !truckId || !driverId) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Check if challan exists
+    const existingChallan = await prisma.challan.findUnique({
+      where: { id }
+    });
+
+    if (!existingChallan) {
+      return res.status(404).json({ error: 'Challan not found' });
+    }
+
+    // Handle challan number validation if provided
+    if (challanNumber && challanNumber.trim()) {
+      // Check if custom challan number already exists (excluding current challan)
+      const duplicateChallan = await prisma.challan.findFirst({
+        where: { 
+          challanNumber: challanNumber.trim(),
+          id: { not: id }
+        }
+      });
+      
+      if (duplicateChallan) {
+        return res.status(400).json({ error: 'Challan number already exists. Please use a different number.' });
+      }
+    }
+
+    // Update challan
+    const updatedChallan = await prisma.challan.update({
+      where: { id },
+      data: {
+        challanNumber: challanNumber && challanNumber.trim() ? challanNumber.trim() : existingChallan.challanNumber,
+        transportCompanyId,
+        truckId,
+        driverId,
+        fromLocation: fromLocation || 'Not specified',
+        toLocation: toLocation || 'Not specified',
+        notes: notes || null
+      },
+      include: {
+        transportCompany: {
+          select: { name: true, address: true, phone: true }
+        },
+        truck: {
+          select: { vehicleNumber: true, make: true, model: true }
+        },
+        driver: {
+          select: { name: true, phone: true, licenseNumber: true }
+        },
+        challanGoods: {
+          include: {
+            booking: {
+              select: {
+                grNumber: true,
+                consigneeName: true,
+                consigneeAddress: true,
+                packages: {
+                  select: {
+                    numberOfItems: true
+                  }
+                }
+              }
+            }
+          },
+          orderBy: {
+            serialNumber: 'asc'
+          }
+        }
+      }
+    });
+
+    res.json(updatedChallan);
+  } catch (error) {
+    console.error('Error updating challan:', error);
+    res.status(500).json({ error: 'Failed to update challan' });
   }
 });
 
@@ -323,6 +435,125 @@ router.delete('/:id', async (req, res) => {
   } catch (error) {
     console.error('Error deleting challan:', error);
     res.status(500).json({ error: 'Failed to delete challan' });
+  }
+});
+
+// Migration endpoint to clean up challan decimal values
+router.post('/cleanup-decimals', async (req, res) => {
+  try {
+    console.log('Starting challan decimal cleanup migration...');
+    
+    // Get all challans with weight and charges values
+    const challans = await prisma.challan.findMany({
+      select: {
+        id: true,
+        totalWeight: true,
+        totalCharges: true,
+        challanGoods: {
+          select: {
+            id: true,
+            weight: true,
+            charges: true
+          }
+        }
+      }
+    });
+
+    let challanUpdatedCount = 0;
+    let challanSkippedCount = 0;
+    let challanGoodsUpdatedCount = 0;
+    let challanGoodsSkippedCount = 0;
+
+    for (const challan of challans) {
+      let needsUpdate = false;
+      const updateData = {};
+
+      // Check and round total weight
+      if (challan.totalWeight !== null && challan.totalWeight !== undefined) {
+        const roundedWeight = Math.round(parseFloat(challan.totalWeight));
+        if (Math.abs(roundedWeight - challan.totalWeight) > 0.01) {
+          updateData.totalWeight = roundedWeight;
+          needsUpdate = true;
+        }
+      }
+
+      // Check and round total charges
+      if (challan.totalCharges !== null && challan.totalCharges !== undefined) {
+        const roundedCharges = Math.round(parseFloat(challan.totalCharges));
+        if (Math.abs(roundedCharges - challan.totalCharges) > 0.01) {
+          updateData.totalCharges = roundedCharges;
+          needsUpdate = true;
+        }
+      }
+
+      // Update challan if needed
+      if (needsUpdate) {
+        await prisma.challan.update({
+          where: { id: challan.id },
+          data: updateData
+        });
+        challanUpdatedCount++;
+        console.log(`Updated challan ${challan.id}: weight ${challan.totalWeight} → ${updateData.totalWeight || challan.totalWeight}, charges ${challan.totalCharges} → ${updateData.totalCharges || challan.totalCharges}`);
+      } else {
+        challanSkippedCount++;
+      }
+
+      // Update challan goods
+      for (const challanGood of challan.challanGoods) {
+        let goodNeedsUpdate = false;
+        const goodUpdateData = {};
+
+        // Check and round weight
+        if (challanGood.weight !== null && challanGood.weight !== undefined) {
+          const roundedWeight = Math.round(parseFloat(challanGood.weight));
+          if (Math.abs(roundedWeight - challanGood.weight) > 0.01) {
+            goodUpdateData.weight = roundedWeight;
+            goodNeedsUpdate = true;
+          }
+        }
+
+        // Check and round charges
+        if (challanGood.charges !== null && challanGood.charges !== undefined) {
+          const roundedCharges = Math.round(parseFloat(challanGood.charges));
+          if (Math.abs(roundedCharges - challanGood.charges) > 0.01) {
+            goodUpdateData.charges = roundedCharges;
+            goodNeedsUpdate = true;
+          }
+        }
+
+        // Update challan good if needed
+        if (goodNeedsUpdate) {
+          await prisma.challanGoods.update({
+            where: { id: challanGood.id },
+            data: goodUpdateData
+          });
+          challanGoodsUpdatedCount++;
+          console.log(`Updated challan good ${challanGood.id}: weight ${challanGood.weight} → ${goodUpdateData.weight || challanGood.weight}, charges ${challanGood.charges} → ${goodUpdateData.charges || challanGood.charges}`);
+        } else {
+          challanGoodsSkippedCount++;
+        }
+      }
+    }
+
+    res.json({
+      message: 'Challan decimal cleanup completed successfully',
+      summary: {
+        challans: {
+          total: challans.length,
+          updated: challanUpdatedCount,
+          skipped: challanSkippedCount
+        },
+        challanGoods: {
+          total: challans.reduce((sum, c) => sum + c.challanGoods.length, 0),
+          updated: challanGoodsUpdatedCount,
+          skipped: challanGoodsSkippedCount
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Error during challan decimal cleanup:', error);
+    res.status(500).json({ error: 'Failed to cleanup challan decimals' });
   }
 });
 

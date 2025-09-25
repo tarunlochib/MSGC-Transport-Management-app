@@ -22,6 +22,7 @@ const CreateBookingPage = () => {
   const [vehicles, setVehicles] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [customers, setCustomers] = useState([]);
+  const [godowns, setGodowns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
@@ -39,6 +40,7 @@ const CreateBookingPage = () => {
     ewayBill: '',
     privateMarka: '',
     paymentMethod: '',
+    paymentType: '',
     deliveryAgainst: '',
     freightCharges: '',
     localCartageCharges: '',
@@ -52,6 +54,7 @@ const CreateBookingPage = () => {
     driverId: '',
     consignorId: '',
     consigneeId: '',
+    godownId: '',
     packages: [],
     invoices: [],
     totalWeight: ''
@@ -91,6 +94,17 @@ const CreateBookingPage = () => {
     }
   };
 
+  // Fetch godowns when transporter is selected
+  const fetchGodowns = async (transporterId) => {
+    try {
+      const response = await axios.get(`/api/godowns/transporter/${transporterId}`);
+      setGodowns(response.data);
+    } catch (error) {
+      console.error('Error fetching godowns:', error);
+      setGodowns([]);
+    }
+  };
+
   // GST Auto-fill functionality
   const handleGSTChange = async (type, gstNumber) => {
     if (!gstNumber) return;
@@ -121,11 +135,38 @@ const CreateBookingPage = () => {
     }
   };
 
+  const checkBookingExists = async () => {
+    try {
+      // Check if GR number already exists
+      const bookings = await axios.get('/api/bookings');
+      const existingBooking = bookings.data.find(booking => 
+        booking.grNumber.toLowerCase() === formData.grNumber.toLowerCase()
+      );
+      
+      if (existingBooking) {
+        alert('Booking with this GR number already exists. Please use a different GR number.');
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('Error checking booking existence:', error);
+      return false;
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
     
     try {
+      // Check if booking already exists
+      const bookingExists = await checkBookingExists();
+      if (bookingExists) {
+        setSubmitting(false);
+        return;
+      }
+      
       // Calculate total charges before submitting
       const totalCharges = calculateTotalCharges();
       
@@ -155,7 +196,11 @@ const CreateBookingPage = () => {
       navigate('/bookings');
     } catch (error) {
       console.error('Error creating booking:', error);
-      alert('Error creating booking. Please try again.');
+      if (error.response?.data?.error) {
+        alert(error.response.data.error);
+      } else {
+        alert('Error creating booking. Please try again.');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -169,7 +214,8 @@ const CreateBookingPage = () => {
     const labour = parseFloat(formData.labourCharges) || 0;
     const other = parseFloat(formData.otherCharges) || 0;
     
-    return (freight + localCartage + doorDelivery + stationary + labour + other).toFixed(2);
+    const total = freight + localCartage + doorDelivery + stationary + labour + other;
+    return total % 1 === 0 ? total.toString() : total.toFixed(2);
   };
 
   const nextStep = () => {
@@ -184,10 +230,29 @@ const CreateBookingPage = () => {
     }
   };
 
+  // Handle transporter change
+  const handleTransporterChange = (transporterId) => {
+    setFormData(prev => ({ ...prev, transporterId, godownId: '' }));
+    
+    // Check if this is the specific transporter that needs godown selection
+    const selectedTransporter = transporters.find(t => t.id === transporterId);
+    if (selectedTransporter && selectedTransporter.contactInfo && 
+        selectedTransporter.contactInfo.includes('07AAUCS4940E1Z1')) {
+      fetchGodowns(transporterId);
+    } else {
+      setGodowns([]);
+    }
+  };
+
   const isStepValid = (step) => {
     switch (step) {
       case 1:
-        return formData.grNumber && formData.bookingDate && formData.transporterId;
+        const basicValid = formData.grNumber && formData.bookingDate && formData.transporterId;
+        // If godowns are available (specific transporter), godown selection is required
+        if (godowns.length > 0) {
+          return basicValid && formData.godownId;
+        }
+        return basicValid;
       case 2:
         return formData.packages && formData.packages.length > 0 && 
                formData.packages.every(pkg => 
@@ -216,7 +281,15 @@ const CreateBookingPage = () => {
   const renderStepContent = () => {
     switch (currentStep) {
       case 1:
-        return <BasicDetailsStep formData={formData} setFormData={setFormData} transporters={transporters} />;
+        return (
+          <BasicDetailsStep 
+            formData={formData} 
+            setFormData={setFormData} 
+            transporters={transporters}
+            godowns={godowns}
+            onTransporterChange={handleTransporterChange}
+          />
+        );
       case 2:
         return <PackagesStep formData={formData} setFormData={setFormData} />;
       case 3:

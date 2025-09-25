@@ -65,7 +65,12 @@ router.get('/:id', async (req, res) => {
 // Get customer by GST number
 router.get('/gst/:gstNumber', async (req, res) => {
   try {
-    const customer = await prisma.customer.findUnique({
+    // For URP, we don't want to find by GST number since multiple customers can have URP
+    if (req.params.gstNumber.toUpperCase() === 'URP') {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+    
+    const customer = await prisma.customer.findFirst({
       where: { gstNumber: req.params.gstNumber }
     });
     if (!customer) {
@@ -85,6 +90,7 @@ router.post('/', async (req, res) => {
       name, 
       address, 
       gstNumber, 
+      panNumber,
       phone, 
       email, 
       contactPerson, 
@@ -96,13 +102,29 @@ router.post('/', async (req, res) => {
       notes 
     } = req.body;
     
-    // Check if GST number already exists
-    const existingCustomer = await prisma.customer.findUnique({
-      where: { gstNumber }
-    });
+    // Check if GST number already exists (only if not URP)
+    if (gstNumber && gstNumber.toUpperCase() !== 'URP') {
+      const existingCustomer = await prisma.customer.findFirst({
+        where: { gstNumber }
+      });
+      
+      if (existingCustomer) {
+        return res.status(400).json({ error: 'Customer with this GST number already exists' });
+      }
+    }
     
-    if (existingCustomer) {
-      return res.status(400).json({ error: 'Customer with this GST number already exists' });
+    // Check if PAN number already exists (when GST is URP)
+    if (gstNumber && gstNumber.toUpperCase() === 'URP' && panNumber) {
+      const existingCustomer = await prisma.customer.findFirst({
+        where: { 
+          panNumber: panNumber.toUpperCase(),
+          gstNumber: 'URP'
+        }
+      });
+      
+      if (existingCustomer) {
+        return res.status(400).json({ error: 'Customer with this PAN number already exists' });
+      }
     }
     
     const customer = await prisma.customer.create({
@@ -110,6 +132,7 @@ router.post('/', async (req, res) => {
         name,
         address,
         gstNumber,
+        panNumber: panNumber || null,
         phone: phone || null,
         email: email || null,
         contactPerson: contactPerson || null,
@@ -135,6 +158,7 @@ router.put('/:id', async (req, res) => {
       name, 
       address, 
       gstNumber, 
+      panNumber,
       phone, 
       email, 
       contactPerson, 
@@ -146,8 +170,8 @@ router.put('/:id', async (req, res) => {
       notes 
     } = req.body;
     
-    // Check if GST number already exists for another customer
-    if (gstNumber) {
+    // Check if GST number already exists for another customer (only if not URP)
+    if (gstNumber && gstNumber.toUpperCase() !== 'URP') {
       const existingCustomer = await prisma.customer.findFirst({
         where: {
           gstNumber,
@@ -160,12 +184,28 @@ router.put('/:id', async (req, res) => {
       }
     }
     
+    // Check if PAN number already exists for another customer (when GST is URP)
+    if (gstNumber && gstNumber.toUpperCase() === 'URP' && panNumber) {
+      const existingCustomer = await prisma.customer.findFirst({
+        where: {
+          panNumber: panNumber.toUpperCase(),
+          gstNumber: 'URP',
+          id: { not: req.params.id }
+        }
+      });
+      
+      if (existingCustomer) {
+        return res.status(400).json({ error: 'Customer with this PAN number already exists' });
+      }
+    }
+    
     const customer = await prisma.customer.update({
       where: { id: req.params.id },
       data: {
         name,
         address,
         gstNumber,
+        panNumber: panNumber || null,
         phone: phone || null,
         email: email || null,
         contactPerson: contactPerson || null,

@@ -302,8 +302,8 @@ const DashboardLayout = () => {
               <Route path="/customers/view/:id" element={<ViewCustomerPage />} />
               <Route path="/bookings" element={<BookingsListPage />} />
               <Route path="/bookings/create" element={<CreateBookingPage />} />
-              <Route path="/bookings/view/:id" element={<ViewBookingPage />} />
-              <Route path="/bookings/edit/:id" element={<EditBookingPage />} />
+              <Route path="/bookings/:id" element={<ViewBookingPage />} />
+              <Route path="/bookings/:id/edit" element={<EditBookingPage />} />
               <Route path="/expenses" element={<ExpensesPage />} />
               <Route path="/billing" element={<BillingPage />} />
             </Routes>

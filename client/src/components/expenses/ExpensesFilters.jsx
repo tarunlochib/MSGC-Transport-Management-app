@@ -112,8 +112,24 @@ const ExpensesFilters = ({ filters, setFilters, vehicles, itemsPerPage, setItems
                   <option value="all">All Types</option>
                   <option value="fuel">Fuel</option>
                   <option value="toll">Toll & Permits</option>
-                  <option value="maintenance">Maintenance</option>
-                  <option value="misc">Miscellaneous</option>
+                  <option value="maintenance">Vehicle Maintenance</option>
+                  <option value="insurance">Insurance</option>
+                  <option value="mobile_internet">Mobile & Internet</option>
+                  <option value="household">Household</option>
+                  <option value="emi">EMIs</option>
+                  <option value="labour">Labour Payment</option>
+                  <option value="salary">Salary</option>
+                  <option value="office_rent">Office Rent</option>
+                  <option value="utilities">Utilities</option>
+                  <option value="marketing">Marketing & Advertising</option>
+                  <option value="legal">Legal & Professional</option>
+                  <option value="travel">Travel & Accommodation</option>
+                  <option value="stationery">Stationery & Supplies</option>
+                  <option value="repairs">Repairs & Renovation</option>
+                  <option value="taxes">Taxes & Compliance</option>
+            <option value="bank_charges">Bank Charges</option>
+            <option value="gaadi_bhaada">Gaadi Bhaada</option>
+            <option value="misc">Miscellaneous</option>
                 </select>
                 <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
                   <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

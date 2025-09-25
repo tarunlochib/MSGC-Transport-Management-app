@@ -846,12 +846,12 @@ const PrintableBill = ({ billData, onClose }) => {
                                            <td className="p-2 font-semibold">
                         {booking.paidAmount && booking.paidAmount > 0 
                           ? '-'
-                          : formatCurrency(booking.totalCharges || booking.totalDue)
+                          : formatCurrency(booking.totalCharges || 0)
                         }
                       </td>
                     <td className="p-2">{formatCurrency(booking.commissionAmount || (booking.weightKg * (billData.transporter?.commissionRate || billData.commissionRate)))}</td>
                     <td className="p-2">{formatCurrency(booking.localCartageCharges)}</td>
-                                         <td className="p-2 font-semibold">{formatCurrency(booking.totalCharges || booking.totalDue)}</td>
+                                         <td className="p-2 font-semibold">{formatCurrency(booking.totalDue)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -892,8 +892,16 @@ const PrintableBill = ({ billData, onClose }) => {
                   <span className="detail-value">{formatCurrency(billData.summary?.totalLocalCartage || billData.localCartageCharges)}</span>
                 </div>
                 <div className="flex justify-between items-center border-t border-gray-300 pt-1">
-                  <span className="detail-label font-bold">Total Due:</span>
-                  <span className="detail-value font-bold text-blue-600">{formatCurrency(billData.summary?.totalDue || billData.totalDue)}</span>
+                  <span className="detail-label font-semibold">Gross Total:</span>
+                  <span className="detail-value">{formatCurrency(billData.summary?.totalDue || billData.totalDue)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="detail-label font-semibold text-red-600">Less: Customer Payments:</span>
+                  <span className="detail-value text-red-600">-{formatCurrency(billData.summary?.totalPaid || billData.totalPaid)}</span>
+                </div>
+                <div className="flex justify-between items-center border-t border-gray-300 pt-1">
+                  <span className="detail-label font-bold">Net Amount Due:</span>
+                  <span className="detail-value font-bold text-blue-600">{formatCurrency(billData.summary?.totalRemaining || billData.totalRemaining)}</span>
                 </div>
               </div>
             </div>
@@ -910,6 +918,8 @@ const PrintableBill = ({ billData, onClose }) => {
                 <li>• Late payments may incur additional charges</li>
                 <li>• Commission is calculated based on actual weight transported</li>
                 <li>• Local cartage charges are additional to commission</li>
+                <li>• Customer payments are deducted from gross total to calculate net amount due</li>
+                <li>• Net amount due = (Commission + Local Cartage) - Customer Payments</li>
               </ul>
             </div>
             <div className="text-right">

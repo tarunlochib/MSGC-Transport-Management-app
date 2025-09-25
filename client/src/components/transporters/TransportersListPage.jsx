@@ -118,18 +118,24 @@ const TransportersListPage = () => {
     const rect = button.getBoundingClientRect();
     
     const menuWidth = 192;
+    const menuHeight = 120;
     const viewportWidth = window.innerWidth;
-    let x = rect.left;
+    const viewportHeight = window.innerHeight;
     
+    let x = rect.left;
+    let y = rect.bottom + 8;
+    
+    // Adjust horizontal position if menu would overflow
     if (x + menuWidth > viewportWidth) {
-      x = rect.left - menuWidth;
+      x = rect.right - menuWidth;
     }
     
-    setMenuPosition({
-      x: x,
-      y: rect.bottom + 8
-    });
+    // Adjust vertical position if menu would overflow
+    if (y + menuHeight > viewportHeight) {
+      y = rect.top - menuHeight - 8;
+    }
     
+    setMenuPosition({ x, y });
     setShowActionsMenu(showActionsMenu === id ? null : id);
   };
 
@@ -443,7 +449,8 @@ const TransportersListPage = () => {
                             className="fixed w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200"
                             style={{
                               left: menuPosition.x,
-                              top: menuPosition.y
+                              top: menuPosition.y,
+                              minWidth: '192px'
                             }}
                           >
                             <button

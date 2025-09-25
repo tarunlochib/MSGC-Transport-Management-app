@@ -41,6 +41,7 @@ const CustomersListPage = () => {
       const matchesSearch = 
         customer.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         customer.gstNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        customer.panNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (customer.phone && customer.phone.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (customer.email && customer.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (customer.contactPerson && customer.contactPerson.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -367,7 +368,7 @@ const CustomersListPage = () => {
               <tr>
                 <SortableHeader field="name">Name</SortableHeader>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  GST Number
+                  GST/PAN Number
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Contact Person
@@ -393,7 +394,12 @@ const CustomersListPage = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {formatField(customer.gstNumber)}
+                    <div>
+                      <div className="font-medium">{formatField(customer.gstNumber)}</div>
+                      {customer.gstNumber?.toUpperCase() === 'URP' && customer.panNumber && (
+                        <div className="text-xs text-gray-500">PAN: {customer.panNumber}</div>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {formatField(customer.contactPerson)}

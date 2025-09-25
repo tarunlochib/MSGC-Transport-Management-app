@@ -9,7 +9,13 @@ const PackagesStep = ({ formData, setFormData }) => {
     'Loose',
     'Wooden Box',
     'Barrels',
-    'Rolls'
+    'Rolls',
+    'Pallets',
+    'Crates',
+    'Drums',
+    'Sacks',
+    'Bundles',
+    'Cases'
   ];
 
   const addPackage = () => {

@@ -13,7 +13,7 @@ const WeightStep = ({ formData, setFormData }) => {
       const weightPerPackage = parseFloat(value) / formData.packages.length;
       updatedFormData.packages = formData.packages.map(pkg => ({
         ...pkg,
-        weightKg: weightPerPackage.toFixed(2)
+        weightKg: weightPerPackage % 1 === 0 ? weightPerPackage.toString() : weightPerPackage.toFixed(2)
       }));
     }
 
@@ -92,9 +92,12 @@ const WeightStep = ({ formData, setFormData }) => {
                         setFormData({
                           ...formData,
                           packages: newPackages,
-                          totalWeight: newPackages.reduce((total, pkg) => 
-                            total + (parseFloat(pkg.weightKg) || 0), 0
-                          ).toFixed(2)
+                          totalWeight: (() => {
+                            const total = newPackages.reduce((total, pkg) => 
+                              total + (parseFloat(pkg.weightKg) || 0), 0
+                            );
+                            return total % 1 === 0 ? total.toString() : total.toFixed(2);
+                          })()
                         });
                       }}
                       className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"

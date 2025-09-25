@@ -11,6 +11,7 @@ const FormField = ({
   disabled = false,
   required = false,
   className = "",
+  helpText,
   children
 }) => {
   return (
@@ -35,6 +36,11 @@ const FormField = ({
             ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
           `}
         />
+      )}
+      {helpText && !error && (
+        <p className="text-sm text-gray-500">
+          {helpText}
+        </p>
       )}
       {error && (
         <p className="text-sm text-red-600 flex items-center space-x-1">

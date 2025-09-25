@@ -180,6 +180,13 @@ const ViewCustomerPage = () => {
                   <p className="mt-1 text-sm font-medium text-gray-900">{customer.gstNumber}</p>
                 </div>
                 
+                {customer.gstNumber?.toUpperCase() === 'URP' && customer.panNumber && (
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide">PAN Number</label>
+                    <p className="mt-1 text-sm font-medium text-gray-900">{customer.panNumber}</p>
+                  </div>
+                )}
+                
                 <div className="bg-gray-50 rounded-lg p-3">
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide">Contact Person</label>
                   <p className="mt-1 text-sm font-medium text-gray-900">{customer.contactPerson || 'Not specified'}</p>

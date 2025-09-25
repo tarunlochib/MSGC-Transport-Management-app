@@ -9,6 +9,7 @@ const CreateCustomerPage = () => {
     name: '',
     address: '',
     gstNumber: '',
+    panNumber: '',
     phone: '',
     email: '',
     contactPerson: '',
@@ -29,6 +30,15 @@ const CreateCustomerPage = () => {
       [name]: value
     }));
     
+    // Clear PAN number when GST number is not 'URP'
+    if (name === 'gstNumber' && value.toUpperCase() !== 'URP') {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value,
+        panNumber: ''
+      }));
+    }
+    
     // Clear error when user starts typing
     if (errors[name]) {
       setErrors(prev => ({
@@ -44,6 +54,16 @@ const CreateCustomerPage = () => {
     if (!formData.name.trim()) newErrors.name = 'Name is required';
     if (!formData.address.trim()) newErrors.address = 'Address is required';
     if (!formData.gstNumber.trim()) newErrors.gstNumber = 'GST number is required';
+    
+    // Validate PAN number if GST number is 'URP'
+    if (formData.gstNumber.toUpperCase() === 'URP' && !formData.panNumber.trim()) {
+      newErrors.panNumber = 'PAN number is required when GST number is URP';
+    }
+    
+    // Validate PAN number format (10 characters: 5 letters, 4 digits, 1 letter)
+    if (formData.panNumber && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(formData.panNumber.toUpperCase())) {
+      newErrors.panNumber = 'Please enter a valid PAN number (e.g., ABCDE1234F)';
+    }
     
     if (formData.email && !/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = 'Please enter a valid email address';
@@ -65,10 +85,86 @@ const CreateCustomerPage = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  const checkCustomerExists = async () => {
+    try {
+      // Check by GST number (only if not URP)
+      if (formData.gstNumber.trim() && formData.gstNumber.toUpperCase() !== 'URP') {
+        const response = await axios.get(`/api/customers/gst/${formData.gstNumber.trim()}`);
+        if (response.data) {
+          setErrors(prev => ({
+            ...prev,
+            gstNumber: 'Customer with this GST number already exists'
+          }));
+          return true;
+        }
+      }
+      
+      // Check by PAN number if GST is URP
+      if (formData.gstNumber.toUpperCase() === 'URP' && formData.panNumber.trim()) {
+        const customers = await axios.get('/api/customers');
+        const existingCustomer = customers.data.find(customer => 
+          customer.panNumber && customer.panNumber.toUpperCase() === formData.panNumber.toUpperCase()
+        );
+        if (existingCustomer) {
+          setErrors(prev => ({
+            ...prev,
+            panNumber: 'Customer with this PAN number already exists'
+          }));
+          return true;
+        }
+      }
+      
+      // Check by email if provided
+      if (formData.email.trim()) {
+        const customers = await axios.get('/api/customers');
+        const existingCustomer = customers.data.find(customer => 
+          customer.email && customer.email.toLowerCase() === formData.email.toLowerCase()
+        );
+        if (existingCustomer) {
+          setErrors(prev => ({
+            ...prev,
+            email: 'Customer with this email already exists'
+          }));
+          return true;
+        }
+      }
+      
+      // Check by phone if provided
+      if (formData.phone.trim()) {
+        const customers = await axios.get('/api/customers');
+        const existingCustomer = customers.data.find(customer => 
+          customer.phone && customer.phone.replace(/\D/g, '') === formData.phone.replace(/\D/g, '')
+        );
+        if (existingCustomer) {
+          setErrors(prev => ({
+            ...prev,
+            phone: 'Customer with this phone number already exists'
+          }));
+          return true;
+        }
+      }
+      
+      return false;
+    } catch (error) {
+      // If GST check returns 404, customer doesn't exist - that's good
+      if (error.response?.status === 404) {
+        return false;
+      }
+      console.error('Error checking customer existence:', error);
+      return false;
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (!validateForm()) {
+      return;
+    }
+
+    // Check if customer already exists
+    const customerExists = await checkCustomerExists();
+    if (customerExists) {
       return;
     }
 
@@ -184,12 +280,38 @@ const CreateCustomerPage = () => {
                     className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm ${
                       errors.gstNumber ? 'border-red-300' : ''
                     }`}
-                    placeholder="Enter GST number"
+                    placeholder="Enter GST number or 'URP' for unregistered persons"
                   />
                   {errors.gstNumber && (
                     <p className="text-xs text-red-600">{errors.gstNumber}</p>
                   )}
                 </div>
+
+                {/* PAN Number field - only visible when GST is 'URP' */}
+                {formData.gstNumber.toUpperCase() === 'URP' && (
+                  <div className="space-y-1">
+                    <label className="block text-xs font-semibold text-gray-700">
+                      PAN Number <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="panNumber"
+                      value={formData.panNumber}
+                      onChange={handleChange}
+                      className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm uppercase ${
+                        errors.panNumber ? 'border-red-300' : ''
+                      }`}
+                      placeholder="Enter PAN number (e.g., ABCDE1234F)"
+                      maxLength="10"
+                    />
+                    {errors.panNumber && (
+                      <p className="text-xs text-red-600">{errors.panNumber}</p>
+                    )}
+                    <p className="text-xs text-gray-500">
+                      Required for customers without GST number (URP)
+                    </p>
+                  </div>
+                )}
 
                 <div className="space-y-1">
                   <label className="block text-xs font-semibold text-gray-700">

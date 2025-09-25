@@ -54,7 +54,8 @@ const ViewBookingPage = () => {
     const labour = parseFloat(booking.labourCharges) || 0;
     const other = parseFloat(booking.otherCharges) || 0;
     
-    return (freight + localCartage + doorDelivery + stationary + labour + other).toFixed(2);
+    const total = freight + localCartage + doorDelivery + stationary + labour + other;
+    return total % 1 === 0 ? total.toString() : total.toFixed(2);
   };
 
   if (loading) {

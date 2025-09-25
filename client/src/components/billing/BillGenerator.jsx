@@ -221,16 +221,24 @@ const BillGenerator = () => {
                       <span className="font-medium">₹{billData.transporter?.commissionRate} per kg</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Commission Amount:</span>
+                      <span className="text-gray-600">Total Commission:</span>
                       <span className="font-medium text-green-600">{formatCurrency(billData.summary?.totalCommission)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Local Cartage:</span>
+                      <span className="text-gray-600">Total Local Cartage:</span>
                       <span className="font-medium">{formatCurrency(billData.summary?.totalLocalCartage)}</span>
                     </div>
                     <div className="flex justify-between border-t border-gray-300 pt-2">
-                      <span className="font-semibold">Total Due:</span>
-                      <span className="font-semibold text-blue-600">{formatCurrency(billData.summary?.totalDue)}</span>
+                      <span className="font-semibold">Gross Total:</span>
+                      <span className="font-semibold">{formatCurrency(billData.summary?.totalDue)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-red-600 font-semibold">Less: Customer Payments:</span>
+                      <span className="font-semibold text-red-600">-{formatCurrency(billData.summary?.totalPaid)}</span>
+                    </div>
+                    <div className="flex justify-between border-t border-gray-300 pt-2">
+                      <span className="font-semibold">Net Amount Due:</span>
+                      <span className="font-semibold text-blue-600">{formatCurrency(billData.summary?.totalRemaining)}</span>
                     </div>
                   </div>
                 </div>

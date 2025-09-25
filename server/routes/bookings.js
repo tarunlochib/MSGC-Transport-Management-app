@@ -13,6 +13,7 @@ router.get('/', async (req, res) => {
         driver: true,
         consignor: true,
         consignee: true,
+        godown: true,
         packages: true,
         invoices: true
       },
@@ -37,6 +38,7 @@ router.get('/:id', async (req, res) => {
         driver: true,
         consignor: true,
         consignee: true,
+        godown: true,
         packages: true,
         invoices: true
       }
@@ -71,6 +73,7 @@ router.post('/', async (req, res) => {
       ewayBill,
       privateMarka,
       paymentMethod,
+      paymentType,
       totalAmount,
       paidAmount,
       deliveryAgainst,
@@ -86,6 +89,7 @@ router.post('/', async (req, res) => {
       driverId,
       consignorId,
       consigneeId,
+      godownId,
       packages,
       invoices
     } = req.body;
@@ -94,6 +98,15 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ 
         error: 'GR Number, booking date, consignor name, consignee name, from location, to location, and transporter are required' 
       });
+    }
+    
+    // Check if GR number already exists
+    const existingBooking = await prisma.booking.findUnique({
+      where: { grNumber }
+    });
+    
+    if (existingBooking) {
+      return res.status(400).json({ error: 'Booking with this GR number already exists' });
     }
     
     const booking = await prisma.booking.create({
@@ -108,25 +121,27 @@ router.post('/', async (req, res) => {
         consigneeGST,
         fromLocation,
         toLocation,
-        weightKg: parseFloat(weightKg || totalWeight || 0),
+        weightKg: Math.round(parseFloat(weightKg || totalWeight || 0)),
         ewayBill,
         privateMarka,
         paymentMethod,
-        totalAmount: parseFloat(totalAmount || 0),
-        paidAmount: parseFloat(paidAmount || 0),
+        paymentType,
+        totalAmount: Math.round(parseFloat(totalAmount || 0)),
+        paidAmount: Math.round(parseFloat(paidAmount || 0)),
         deliveryAgainst,
-        freightCharges: parseFloat(freightCharges || 0),
-        localCartageCharges: parseFloat(localCartageCharges || 0),
-        doorDeliveryCharges: parseFloat(doorDeliveryCharges || 0),
-        stationaryCharges: parseFloat(stationaryCharges || 0),
-        labourCharges: parseFloat(labourCharges || 0),
-        otherCharges: parseFloat(otherCharges || 0),
-        totalCharges: parseFloat(totalCharges || 0),
+        freightCharges: Math.round(parseFloat(freightCharges || 0)),
+        localCartageCharges: Math.round(parseFloat(localCartageCharges || 0)),
+        doorDeliveryCharges: Math.round(parseFloat(doorDeliveryCharges || 0)),
+        stationaryCharges: Math.round(parseFloat(stationaryCharges || 0)),
+        labourCharges: Math.round(parseFloat(labourCharges || 0)),
+        otherCharges: Math.round(parseFloat(otherCharges || 0)),
+        totalCharges: Math.round(parseFloat(totalCharges || 0)),
         transporterId,
         vehicleId: vehicleId || null,
         driverId: driverId || null,
         consignorId: consignorId || null,
         consigneeId: consigneeId || null,
+        godownId: godownId || null,
         packages: {
           create: packages || []
         },
@@ -142,6 +157,23 @@ router.post('/', async (req, res) => {
         invoices: true
       }
     });
+
+    // Automatically create income entry for PAID bookings (excluding Cheque payments)
+    if (paymentMethod === 'Paid' && totalCharges > 0 && paymentType !== 'Cheque') {
+      await prisma.income.create({
+        data: {
+          date: new Date(bookingDate),
+          amount: Math.round(parseFloat(totalCharges)), // Round to whole number
+          source: `Booking Payment - GR: ${grNumber}`,
+          description: `Payment received for booking from ${consignorName} to ${consigneeName}`,
+          category: 'Booking Payment',
+          paymentMethod: paymentType === 'UPI' ? 'upi' : 'cash', // Use actual payment type
+          referenceNumber: grNumber,
+          status: 'Received',
+          transporterId: transporterId || null
+        }
+      });
+    }
     
     res.status(201).json(booking);
   } catch (error) {
@@ -168,6 +200,7 @@ router.put('/:id', async (req, res) => {
       ewayBill,
       privateMarka,
       paymentMethod,
+      paymentType,
       totalAmount,
       paidAmount,
       deliveryAgainst,
@@ -183,6 +216,7 @@ router.put('/:id', async (req, res) => {
       driverId,
       consignorId,
       consigneeId,
+      godownId,
       packages,
       invoices
     } = req.body;
@@ -191,6 +225,18 @@ router.put('/:id', async (req, res) => {
       return res.status(400).json({ 
         error: 'GR Number, booking date, consignor name, consignee name, from location, to location, and transporter are required' 
       });
+    }
+    
+    // Check if GR number already exists for another booking
+    const existingBooking = await prisma.booking.findFirst({
+      where: {
+        grNumber,
+        id: { not: req.params.id }
+      }
+    });
+    
+    if (existingBooking) {
+      return res.status(400).json({ error: 'Booking with this GR number already exists' });
     }
     
     // Delete existing packages and invoices
@@ -202,6 +248,11 @@ router.put('/:id', async (req, res) => {
       where: { bookingId: req.params.id }
     });
     
+    // Get the existing booking to check if payment method changed
+    const currentBooking = await prisma.booking.findUnique({
+      where: { id: req.params.id }
+    });
+
     const booking = await prisma.booking.update({
       where: { id: req.params.id },
       data: {
@@ -215,25 +266,27 @@ router.put('/:id', async (req, res) => {
         consigneeGST,
         fromLocation,
         toLocation,
-        weightKg: parseFloat(weightKg || totalWeight || 0),
+        weightKg: Math.round(parseFloat(weightKg || totalWeight || 0)),
         ewayBill,
         privateMarka,
         paymentMethod,
-        totalAmount: parseFloat(totalAmount || 0),
-        paidAmount: parseFloat(paidAmount || 0),
+        paymentType,
+        totalAmount: Math.round(parseFloat(totalAmount || 0)),
+        paidAmount: Math.round(parseFloat(paidAmount || 0)),
         deliveryAgainst,
-        freightCharges: parseFloat(freightCharges || 0),
-        localCartageCharges: parseFloat(localCartageCharges || 0),
-        doorDeliveryCharges: parseFloat(doorDeliveryCharges || 0),
-        stationaryCharges: parseFloat(stationaryCharges || 0),
-        labourCharges: parseFloat(labourCharges || 0),
-        otherCharges: parseFloat(otherCharges || 0),
-        totalCharges: parseFloat(totalCharges || 0),
+        freightCharges: Math.round(parseFloat(freightCharges || 0)),
+        localCartageCharges: Math.round(parseFloat(localCartageCharges || 0)),
+        doorDeliveryCharges: Math.round(parseFloat(doorDeliveryCharges || 0)),
+        stationaryCharges: Math.round(parseFloat(stationaryCharges || 0)),
+        labourCharges: Math.round(parseFloat(labourCharges || 0)),
+        otherCharges: Math.round(parseFloat(otherCharges || 0)),
+        totalCharges: Math.round(parseFloat(totalCharges || 0)),
         transporterId,
         vehicleId: vehicleId || null,
         driverId: driverId || null,
         consignorId: consignorId || null,
         consigneeId: consigneeId || null,
+        godownId: godownId || null,
         packages: {
           create: packages || []
         },
@@ -249,6 +302,23 @@ router.put('/:id', async (req, res) => {
         invoices: true
       }
     });
+
+    // Automatically create income entry if booking was updated to PAID and payment type is not Cheque
+    if (paymentMethod === 'Paid' && currentBooking.paymentMethod !== 'Paid' && totalCharges > 0 && paymentType !== 'Cheque') {
+      await prisma.income.create({
+        data: {
+          date: new Date(bookingDate),
+          amount: Math.round(parseFloat(totalCharges)), // Round to whole number
+          source: `Booking Payment - GR: ${grNumber}`,
+          description: `Payment received for booking from ${consignorName} to ${consigneeName}`,
+          category: 'Booking Payment',
+          paymentMethod: paymentType === 'UPI' ? 'upi' : 'cash', // Use actual payment type
+          referenceNumber: grNumber,
+          status: 'Received',
+          transporterId: transporterId || null
+        }
+      });
+    }
     
     res.json(booking);
   } catch (error) {
@@ -259,13 +329,81 @@ router.put('/:id', async (req, res) => {
 // Delete booking
 router.delete('/:id', async (req, res) => {
   try {
-    await prisma.booking.delete({
-      where: { id: req.params.id }
-    });
-    
+    const bookingId = req.params.id;
+
+    // Delete dependent rows that do not have ON DELETE CASCADE at the DB level
+    await prisma.$transaction([
+      prisma.challanGoods.deleteMany({ where: { bookingId } }),
+      prisma.booking.delete({ where: { id: bookingId } })
+    ]);
+
     res.json({ message: 'Booking deleted successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Migration endpoint to create income entries for existing PAID bookings
+router.post('/migrate-paid-bookings', async (req, res) => {
+  try {
+    // Find all existing PAID bookings that don't have corresponding income entries (excluding Cheque payments)
+    const paidBookings = await prisma.booking.findMany({
+      where: {
+        paymentMethod: 'Paid',
+        paymentType: {
+          not: 'Cheque'
+        },
+        totalCharges: {
+          gt: 0
+        }
+      },
+      include: {
+        transporter: true
+      }
+    });
+
+    let createdCount = 0;
+    let skippedCount = 0;
+
+    for (const booking of paidBookings) {
+      // Check if income entry already exists for this booking
+      const existingIncome = await prisma.income.findFirst({
+        where: {
+          referenceNumber: booking.grNumber,
+          category: 'Booking Payment'
+        }
+      });
+
+      if (!existingIncome) {
+        // Create income entry for this booking
+        await prisma.income.create({
+          data: {
+            date: new Date(booking.bookingDate),
+            amount: Math.round(parseFloat(booking.totalCharges)), // Round to whole number
+            source: `Booking Payment - GR: ${booking.grNumber}`,
+            description: `Payment received for booking from ${booking.consignorName} to ${booking.consigneeName}`,
+            category: 'Booking Payment',
+            paymentMethod: 'cash',
+            referenceNumber: booking.grNumber,
+            status: 'Received',
+            transporterId: booking.transporterId || null
+          }
+        });
+        createdCount++;
+      } else {
+        skippedCount++;
+      }
+    }
+
+    res.json({
+      message: `Migration completed successfully`,
+      totalPaidBookings: paidBookings.length,
+      incomeEntriesCreated: createdCount,
+      incomeEntriesSkipped: skippedCount
+    });
+  } catch (error) {
+    console.error('Error migrating paid bookings:', error);
+    res.status(500).json({ error: 'Failed to migrate paid bookings' });
   }
 });
 
