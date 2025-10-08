@@ -81,7 +81,7 @@ class DashboardErrorBoundary extends React.Component {
           </div>
 
           {/* Show error details in development */}
-          {process.env.NODE_ENV === 'development' && this.state.error && (
+          {import.meta.env.DEV && this.state.error && (
             <details className="mt-4 p-3 bg-gray-100 rounded-lg">
               <summary className="text-sm font-medium text-gray-700 cursor-pointer">
                 Error Details (Development Only)

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import Pagination from '../Pagination';
 
 const CustomersListPage = () => {
   const [customers, setCustomers] = useState([]);
@@ -475,43 +476,15 @@ const CustomersListPage = () => {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between bg-white rounded-lg shadow-sm border border-gray-200 p-4 animate-slideUp">
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => setCurrentPage(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
-            >
-              Previous
-            </button>
-            
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-              <button
-                key={page}
-                onClick={() => setCurrentPage(page)}
-                className={`px-3 py-2 text-sm font-medium rounded-md transition-colors duration-200 ${
-                  page === currentPage
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50'
-                }`}
-              >
-                {page}
-              </button>
-            ))}
-            
-            <button
-              onClick={() => setCurrentPage(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
-            >
-              Next
-            </button>
-          </div>
-          
-          <div className="text-sm text-gray-700">
-            Page {currentPage} of {totalPages}
-          </div>
-        </div>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          totalItems={filteredCustomers.length}
+          itemsPerPage={itemsPerPage}
+          startIndex={(currentPage - 1) * itemsPerPage}
+          endIndex={Math.min(currentPage * itemsPerPage, filteredCustomers.length)}
+        />
       )}
     </div>
   );

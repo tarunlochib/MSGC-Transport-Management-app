@@ -111,8 +111,8 @@ const ChallanDetailsPage = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'Active': return 'bg-green-100 text-green-800 border-green-200';
-      case 'Completed': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'In Transit': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'Delivered': return 'bg-green-100 text-green-800 border-green-200';
       case 'Cancelled': return 'bg-red-100 text-red-800 border-red-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
@@ -120,13 +120,13 @@ const ChallanDetailsPage = () => {
 
   const getStatusIcon = (status) => {
     switch (status) {
-      case 'Active':
+      case 'In Transit':
         return (
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
           </svg>
         );
-      case 'Completed':
+      case 'Delivered':
         return (
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -416,20 +416,20 @@ const ChallanDetailsPage = () => {
               </div>
               
               <div className="p-6 space-y-3">
-                {challan.status !== 'Active' && (
+                {challan.status !== 'In Transit' && (
                   <button
-                    onClick={() => handleStatusUpdate('Active')}
-                    className="w-full bg-green-600 text-white py-2.5 px-4 rounded-lg font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:ring-offset-2 transition-all duration-200"
-                  >
-                    Mark as Active
-                  </button>
-                )}
-                {challan.status !== 'Completed' && (
-                  <button
-                    onClick={() => handleStatusUpdate('Completed')}
+                    onClick={() => handleStatusUpdate('In Transit')}
                     className="w-full bg-blue-600 text-white py-2.5 px-4 rounded-lg font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:ring-offset-2 transition-all duration-200"
                   >
-                    Mark as Completed
+                    Mark as In Transit
+                  </button>
+                )}
+                {challan.status !== 'Delivered' && (
+                  <button
+                    onClick={() => handleStatusUpdate('Delivered')}
+                    className="w-full bg-green-600 text-white py-2.5 px-4 rounded-lg font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:ring-offset-2 transition-all duration-200"
+                  >
+                    Mark as Delivered
                   </button>
                 )}
                 {challan.status !== 'Cancelled' && (

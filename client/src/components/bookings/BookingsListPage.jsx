@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
+import Pagination from '../Pagination';
+import performanceOptimizer from '../../utils/performanceOptimization';
 
 const BookingsListPage = () => {
   const [bookings, setBookings] = useState([]);
@@ -17,26 +19,73 @@ const BookingsListPage = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
 
+  // Enhanced UI state
+  const [selectedBookings, setSelectedBookings] = useState([]);
+  const [showBulkActions, setShowBulkActions] = useState(false);
+  const [expandedRows, setExpandedRows] = useState(new Set());
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+  const [showFilters, setShowFilters] = useState(false);
+  const [dateRange, setDateRange] = useState({ start: '', end: '' });
+  const [weightRange, setWeightRange] = useState({ min: '', max: '' });
+  const [amountRange, setAmountRange] = useState({ min: '', max: '' });
+
   useEffect(() => {
     fetchBookings();
   }, []);
 
   useEffect(() => {
     filterBookings();
-  }, [bookings, searchTerm, statusFilter, dateFilter, transporterFilter]);
+  }, [bookings, searchTerm, statusFilter, dateFilter, transporterFilter, dateRange, weightRange, amountRange, sortConfig]);
 
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter, dateFilter, transporterFilter]);
+  }, [searchTerm, statusFilter, dateFilter, transporterFilter, dateRange, weightRange, amountRange, sortConfig]);
 
   const fetchBookings = async () => {
     try {
-      const [bookingsResponse, transportersResponse] = await Promise.all([
+      const [bookingsResponse, transportersResponse, challansResponse] = await Promise.all([
         axios.get('/api/bookings'),
-        axios.get('/api/transporters')
+        axios.get('/api/transporters'),
+        axios.get('/api/challans')
       ]);
-      setBookings(bookingsResponse.data);
+      // Map booking delivery status and challan info from challans
+      const challans = challansResponse.data || [];
+      const bookingIdToChallanInfo = new Map();
+      challans.forEach(ch => {
+        if (Array.isArray(ch.challanGoods)) {
+          ch.challanGoods.forEach(g => {
+            if (g.bookingId) {
+              const existing = bookingIdToChallanInfo.get(g.bookingId);
+              const current = ch.status || 'Generated';
+              const priority = { 'Delivered': 3, 'Completed': 3, 'In Transit': 2, 'Generated': 1 };
+              
+              // Store the most recent or highest priority challan info
+              if (!existing || (priority[current] || 0) > (priority[existing.status] || 0)) {
+                bookingIdToChallanInfo.set(g.bookingId, {
+                  status: current,
+                  challanNumber: ch.challanNumber,
+                  dispatchDate: ch.createdAt,
+                  challanId: ch.id
+                });
+              }
+            }
+          });
+        }
+      });
+
+      const bookingsWithStatus = (bookingsResponse.data || []).map(b => {
+        const challanInfo = bookingIdToChallanInfo.get(b.id);
+        return {
+          ...b,
+          deliveryStatus: challanInfo?.status || 'Not Dispatched',
+          challanNumber: challanInfo?.challanNumber || null,
+          dispatchDate: challanInfo?.dispatchDate || null,
+          challanId: challanInfo?.challanId || null
+        };
+      });
+
+      setBookings(bookingsWithStatus);
       setTransporters(transportersResponse.data);
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -48,14 +97,15 @@ const BookingsListPage = () => {
   const filterBookings = () => {
     let filtered = bookings;
 
-    // Search filter
+    // Enhanced search filter
     if (searchTerm) {
       filtered = filtered.filter(booking =>
         booking.grNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
         booking.consignorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         booking.consigneeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         booking.fromLocation.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        booking.toLocation.toLowerCase().includes(searchTerm.toLowerCase())
+        booking.toLocation.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (booking.challanNumber && booking.challanNumber.toLowerCase().includes(searchTerm.toLowerCase()))
       );
     }
 
@@ -64,8 +114,15 @@ const BookingsListPage = () => {
       filtered = filtered.filter(booking => booking.paymentMethod === statusFilter);
     }
 
-    // Date filter
-    if (dateFilter !== 'all') {
+    // Enhanced date filter with date range
+    if (dateRange.start && dateRange.end) {
+      filtered = filtered.filter(booking => {
+        const bookingDate = new Date(booking.bookingDate);
+        const startDate = new Date(dateRange.start);
+        const endDate = new Date(dateRange.end);
+        return bookingDate >= startDate && bookingDate <= endDate;
+      });
+    } else if (dateFilter !== 'all') {
       const today = new Date();
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
@@ -96,6 +153,59 @@ const BookingsListPage = () => {
       filtered = filtered.filter(booking => booking.transporterId === transporterFilter);
     }
 
+    // Weight range filter
+    if (weightRange.min || weightRange.max) {
+      filtered = filtered.filter(booking => {
+        const weight = booking.weightKg || 0;
+        const minWeight = parseFloat(weightRange.min) || 0;
+        const maxWeight = parseFloat(weightRange.max) || Infinity;
+        return weight >= minWeight && weight <= maxWeight;
+      });
+    }
+
+    // Amount range filter
+    if (amountRange.min || amountRange.max) {
+      filtered = filtered.filter(booking => {
+        const amount = booking.totalCharges || 0;
+        const minAmount = parseFloat(amountRange.min) || 0;
+        const maxAmount = parseFloat(amountRange.max) || Infinity;
+        return amount >= minAmount && amount <= maxAmount;
+      });
+    }
+
+    // Enhanced sorting
+    if (sortConfig.key) {
+      filtered.sort((a, b) => {
+        let aValue = a[sortConfig.key];
+        let bValue = b[sortConfig.key];
+        
+        if (sortConfig.key === 'bookingDate' || sortConfig.key === 'createdAt') {
+          aValue = new Date(aValue).getTime();
+          bValue = new Date(bValue).getTime();
+        } else if (typeof aValue === 'string') {
+          aValue = aValue.toLowerCase();
+          bValue = bValue.toLowerCase();
+        }
+        
+        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    } else {
+      // Default sort: latest first by CREATED time, then by booking date, then by GR number
+      filtered.sort((a, b) => {
+        const aCreated = new Date(a.createdAt || 0).getTime();
+        const bCreated = new Date(b.createdAt || 0).getTime();
+        if (bCreated !== aCreated) return bCreated - aCreated;
+        const aDate = new Date(a.bookingDate || 0).getTime();
+        const bDate = new Date(b.bookingDate || 0).getTime();
+        if (bDate !== aDate) return bDate - aDate;
+        const aGr = parseInt(a.grNumber, 10) || 0;
+        const bGr = parseInt(b.grNumber, 10) || 0;
+        return bGr - aGr;
+      });
+    }
+
     setFilteredBookings(filtered);
     
     // Calculate pagination
@@ -108,10 +218,124 @@ const BookingsListPage = () => {
     }
   };
 
+  // Enhanced helper functions
+  const handleSort = (key) => {
+    setSortConfig(prev => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
+  const toggleRowExpansion = (bookingId) => {
+    setExpandedRows(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(bookingId)) {
+        newSet.delete(bookingId);
+      } else {
+        newSet.add(bookingId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectBooking = (bookingId) => {
+    setSelectedBookings(prev => {
+      if (prev.includes(bookingId)) {
+        return prev.filter(id => id !== bookingId);
+      } else {
+        return [...prev, bookingId];
+      }
+    });
+  };
+
+  const handleSelectAll = () => {
+    const currentPageData = getCurrentPageData();
+    if (selectedBookings.length === currentPageData.length) {
+      setSelectedBookings([]);
+    } else {
+      setSelectedBookings(currentPageData.map(booking => booking.id));
+    }
+  };
+
+  const clearAllFilters = () => {
+    setSearchTerm('');
+    setStatusFilter('all');
+    setDateFilter('all');
+    setTransporterFilter('all');
+    setDateRange({ start: '', end: '' });
+    setWeightRange({ min: '', max: '' });
+    setAmountRange({ min: '', max: '' });
+    setSortConfig({ key: null, direction: 'asc' });
+  };
+
+  const exportToCSV = (exportSelected = false) => {
+    const dataToExport = exportSelected 
+      ? bookings.filter(booking => selectedBookings.includes(booking.id))
+      : bookings;
+
+    const csvData = dataToExport.map(booking => ({
+      'GR Number': booking.grNumber,
+      'Consignor Name': booking.consignorName,
+      'Consignor Address': booking.consignorAddress,
+      'Consignor GST': booking.consignorGST || '',
+      'Consignee Name': booking.consigneeName,
+      'Consignee Address': booking.consigneeAddress,
+      'Consignee GST': booking.consigneeGST || '',
+      'From Location': booking.fromLocation,
+      'To Location': booking.toLocation,
+      'E-way Bill': booking.ewayBill ? String(booking.ewayBill) : '',
+      'Payment Method': booking.paymentMethod,
+      'Payment Type': booking.paymentType || '',
+      'Total Amount': booking.totalAmount ? String(booking.totalAmount) : '',
+      'Paid Amount': booking.paidAmount ? String(booking.paidAmount) : '',
+      'Delivery Against': booking.deliveryAgainst,
+      'Weight (kg)': booking.weightKg ? String(booking.weightKg) : '',
+      'Freight Charges': booking.freightCharges ? String(booking.freightCharges) : '',
+      'Local Cartage Charges': booking.localCartageCharges ? String(booking.localCartageCharges) : '',
+      'Door Delivery Charges': booking.doorDeliveryCharges ? String(booking.doorDeliveryCharges) : '',
+      'Stationary Charges': booking.stationaryCharges ? String(booking.stationaryCharges) : '',
+      'Labour Charges': booking.labourCharges ? String(booking.labourCharges) : '',
+      'Other Charges': booking.otherCharges ? String(booking.otherCharges) : '',
+      'Total Charges': booking.totalCharges ? String(booking.totalCharges) : '',
+      'Transporter': booking.transporter?.name || '',
+      'Vehicle Number': booking.vehicle?.vehicleNumber || '',
+      'Driver Name': booking.driver?.name || '',
+      'Booking Date': formatDate(booking.bookingDate),
+      'Created Date': formatDate(booking.createdAt),
+      'Delivery Status': booking.deliveryStatus,
+      'Challan Number': booking.challanNumber || 'Not dispatched',
+      'Dispatch Date': booking.dispatchDate ? formatDate(booking.dispatchDate) : '',
+      'Private Marka': booking.privateMarka || ''
+    }));
+
+    if (csvData.length === 0) {
+      alert('No data to export');
+      return;
+    }
+
+    const csvContent = [
+      Object.keys(csvData[0]).join(','),
+      ...csvData.map(row => Object.values(row).map(val => `"${String(val).replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${exportSelected ? 'selected-bookings' : 'all-bookings'}-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this booking?')) {
       try {
         await axios.delete(`/api/bookings/${id}`);
+        
+        // Invalidate dashboard cache to ensure fresh data
+        performanceOptimizer.clearCacheEntry('bookings');
+        performanceOptimizer.clearCacheEntry('challans');
+        
         fetchBookings();
       } catch (error) {
         console.error('Error deleting booking:', error);
@@ -122,6 +346,11 @@ const BookingsListPage = () => {
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-IN');
+  };
+
+  const formatCurrency = (amount) => {
+    const value = parseFloat(amount) || 0;
+    return value.toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 0 });
   };
 
   const getPaymentStatusColor = (paymentMethod) => {
@@ -234,16 +463,39 @@ const BookingsListPage = () => {
             </div>
             
             <div className="mt-4 lg:mt-0 flex flex-col sm:flex-row gap-3 animate-slideUp">
-              <Link
-                to="/bookings/create"
-                className="group relative inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 transform hover:scale-105 hover:shadow-md"
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-purple-400 rounded-lg opacity-0 group-hover:opacity-20 transition-opacity duration-200"></div>
-                <svg className="w-4 h-4 mr-2 transition-transform duration-200 group-hover:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-                <span className="relative">Add Booking</span>
-              </Link>
+              {/* Action Buttons */}
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="group relative inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                  </svg>
+                  Filters
+                </button>
+                
+                <button
+                  onClick={() => exportToCSV(false)}
+                  className="group relative inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Export All
+                </button>
+                
+                <Link
+                  to="/bookings/create"
+                  className="group relative inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 transform hover:scale-105 hover:shadow-md"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-purple-400 rounded-lg opacity-0 group-hover:opacity-20 transition-opacity duration-200"></div>
+                  <svg className="w-4 h-4 mr-2 transition-transform duration-200 group-hover:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  <span className="relative">Add Booking</span>
+                </Link>
+              </div>
             </div>
           </div>
         </div>
@@ -382,16 +634,73 @@ const BookingsListPage = () => {
         </div>
       </div>
 
-      {/* Search and Filters */}
+      {/* Compact Bulk Actions Bar */}
+      {selectedBookings.length > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 animate-slideDown">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                <span className="text-sm font-medium text-blue-700">
+                  {selectedBookings.length} booking{selectedBookings.length > 1 ? 's' : ''} selected
+                </span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => exportToCSV(true)}
+                  className="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+                >
+                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Export Selected
+                </button>
+                <button
+                  onClick={() => setSelectedBookings([])}
+                  className="inline-flex items-center px-3 py-1.5 bg-gray-500 text-white text-sm font-medium rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
+                >
+                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  Clear Selection
+                </button>
+              </div>
+            </div>
+            <button
+              onClick={() => setSelectedBookings([])}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Enhanced Search and Filters */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 animate-slideUp">
-        <div className="mb-4">
-          <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-            <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.207A1 1 0 013 6.5V4z" />
-            </svg>
-            Filters & Search
-          </h3>
-          <p className="text-sm text-gray-500 mt-1">Filter bookings by various criteria to find exactly what you need</p>
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+              <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.207A1 1 0 013 6.5V4z" />
+              </svg>
+              Advanced Filters & Search
+            </h3>
+            <p className="text-sm text-gray-500 mt-1">Filter bookings by various criteria to find exactly what you need</p>
+          </div>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={clearAllFilters}
+              className="text-sm text-gray-500 hover:text-gray-700 flex items-center space-x-1"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span>Clear All</span>
+            </button>
+          </div>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -475,6 +784,91 @@ const BookingsListPage = () => {
             </select>
           </div>
         </div>
+
+        {/* Enhanced Filters - Collapsible */}
+        {showFilters && (
+          <div className="mt-6 pt-6 border-t border-gray-200 animate-slideDown">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Date Range Picker */}
+              <div className="lg:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <svg className="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  Custom Date Range
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="date"
+                    value={dateRange.start}
+                    onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-gray-50 focus:bg-white"
+                    placeholder="Start Date"
+                  />
+                  <input
+                    type="date"
+                    value={dateRange.end}
+                    onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-gray-50 focus:bg-white"
+                    placeholder="End Date"
+                  />
+                </div>
+              </div>
+
+              {/* Weight Range */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <svg className="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+                  </svg>
+                  Weight Range (kg)
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="number"
+                    value={weightRange.min}
+                    onChange={(e) => setWeightRange(prev => ({ ...prev, min: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-gray-50 focus:bg-white"
+                    placeholder="Min"
+                  />
+                  <input
+                    type="number"
+                    value={weightRange.max}
+                    onChange={(e) => setWeightRange(prev => ({ ...prev, max: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-gray-50 focus:bg-white"
+                    placeholder="Max"
+                  />
+                </div>
+              </div>
+
+              {/* Amount Range */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <svg className="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                  </svg>
+                  Amount Range (₹)
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="number"
+                    value={amountRange.min}
+                    onChange={(e) => setAmountRange(prev => ({ ...prev, min: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-gray-50 focus:bg-white"
+                    placeholder="Min"
+                  />
+                  <input
+                    type="number"
+                    value={amountRange.max}
+                    onChange={(e) => setAmountRange(prev => ({ ...prev, max: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-gray-50 focus:bg-white"
+                    placeholder="Max"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Active Filters Summary */}
         {(searchTerm || statusFilter !== 'all' || dateFilter !== 'all' || transporterFilter !== 'all') && (
@@ -563,25 +957,115 @@ const BookingsListPage = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  GR Number
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedBookings.length === getCurrentPageData().length && getCurrentPageData().length > 0}
+                      onChange={handleSelectAll}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <span>Select</span>
+                  </div>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Consignor
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                  onClick={() => handleSort('grNumber')}
+                >
+                  <div className="flex items-center space-x-1">
+                    <span>GR Number</span>
+                    {sortConfig.key === 'grNumber' && (
+                      <svg className={`w-4 h-4 ${sortConfig.direction === 'asc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                      </svg>
+                    )}
+                  </div>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Consignee
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                  onClick={() => handleSort('consignorName')}
+                >
+                  <div className="flex items-center space-x-1">
+                    <span>Consignor</span>
+                    {sortConfig.key === 'consignorName' && (
+                      <svg className={`w-4 h-4 ${sortConfig.direction === 'asc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                      </svg>
+                    )}
+                  </div>
+                </th>
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                  onClick={() => handleSort('consigneeName')}
+                >
+                  <div className="flex items-center space-x-1">
+                    <span>Consignee</span>
+                    {sortConfig.key === 'consigneeName' && (
+                      <svg className={`w-4 h-4 ${sortConfig.direction === 'asc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                      </svg>
+                    )}
+                  </div>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Route
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Weight
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                  onClick={() => handleSort('weightKg')}
+                >
+                  <div className="flex items-center space-x-1">
+                    <span>Weight</span>
+                    {sortConfig.key === 'weightKg' && (
+                      <svg className={`w-4 h-4 ${sortConfig.direction === 'asc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                      </svg>
+                    )}
+                  </div>
+                </th>
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                  onClick={() => handleSort('bookingDate')}
+                >
+                  <div className="flex items-center space-x-1">
+                    <span>Date</span>
+                    {sortConfig.key === 'bookingDate' && (
+                      <svg className={`w-4 h-4 ${sortConfig.direction === 'asc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                      </svg>
+                    )}
+                  </div>
+                </th>
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                  onClick={() => handleSort('totalCharges')}
+                >
+                  <div className="flex items-center space-x-1">
+                    <span>Charges</span>
+                    {sortConfig.key === 'totalCharges' && (
+                      <svg className={`w-4 h-4 ${sortConfig.direction === 'asc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                      </svg>
+                    )}
+                  </div>
+                </th>
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                  onClick={() => handleSort('paymentMethod')}
+                >
+                  <div className="flex items-center space-x-1">
+                    <span>Status</span>
+                    {sortConfig.key === 'paymentMethod' && (
+                      <svg className={`w-4 h-4 ${sortConfig.direction === 'asc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                      </svg>
+                    )}
+                  </div>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Date
+                  Delivery
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
+                  Challan Info
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
@@ -591,6 +1075,14 @@ const BookingsListPage = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {getCurrentPageData().map((booking) => (
                 <tr key={booking.id} className="hover:bg-gray-50 transition-colors duration-200">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <input
+                      type="checkbox"
+                      checked={selectedBookings.includes(booking.id)}
+                      onChange={() => handleSelectBooking(booking.id)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">
                       {booking.grNumber}
@@ -630,10 +1122,66 @@ const BookingsListPage = () => {
                     {formatDate(booking.bookingDate)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm font-semibold text-gray-900">₹ {formatCurrency(booking.totalCharges)}</div>
+                    <div className="text-xs text-gray-500">Freight + charges</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getPaymentStatusColor(booking.paymentMethod)}`}>
                       {getPaymentStatusIcon(booking.paymentMethod)}
                       <span className="ml-1">{booking.paymentMethod}</span>
                     </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${
+                      booking.deliveryStatus === 'Delivered' || booking.deliveryStatus === 'Completed'
+                        ? 'bg-green-50 text-green-700 border-green-200'
+                        : booking.deliveryStatus === 'In Transit'
+                          ? 'bg-blue-50 text-blue-700 border-blue-200'
+                          : 'bg-gray-50 text-gray-600 border-gray-200'
+                    }`}>
+                      {booking.deliveryStatus}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {booking.challanNumber ? (
+                      <div className="space-y-1">
+                        <div className="flex items-center space-x-2">
+                          <div className="flex items-center justify-center w-6 h-6 bg-blue-50 rounded-md">
+                            <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">
+                              {booking.challanNumber}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              Dispatched: {formatDate(booking.dispatchDate)}
+                            </div>
+                          </div>
+                        </div>
+                        {booking.challanId && (
+                          <Link
+                            to={`/challans/${booking.challanId}`}
+                            className="inline-flex items-center text-xs text-blue-600 hover:text-blue-700 hover:underline"
+                          >
+                            View Challan
+                            <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                          </Link>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-2 text-gray-400">
+                        <div className="flex items-center justify-center w-6 h-6 bg-gray-50 rounded-md">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
+                        <span className="text-sm">Not dispatched</span>
+                      </div>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-right">
                     <div className="flex items-center justify-end space-x-1">
@@ -697,58 +1245,15 @@ const BookingsListPage = () => {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between bg-white rounded-lg shadow-sm border border-gray-200 p-4 animate-slideUp">
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
-            >
-              Previous
-            </button>
-            
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-              <button
-                key={page}
-                onClick={() => handlePageChange(page)}
-                className={`px-3 py-2 text-sm font-medium rounded-md transition-colors duration-200 ${
-                  page === currentPage
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50'
-                }`}
-              >
-                {page}
-              </button>
-            ))}
-            
-            <button
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
-            >
-              Next
-            </button>
-          </div>
-          
-          <div className="flex items-center space-x-4">
-            <div className="text-sm text-gray-700">
-              Page {currentPage} of {totalPages}
-            </div>
-            <div className="flex items-center space-x-2">
-              <label className="text-sm text-gray-700">Items per page:</label>
-              <select
-                value={itemsPerPage}
-                onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
-                className="px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value={10}>10</option>
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
-            </div>
-          </div>
-        </div>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={handlePageChange}
+          totalItems={filteredBookings.length}
+          itemsPerPage={itemsPerPage}
+          startIndex={(currentPage - 1) * itemsPerPage}
+          endIndex={Math.min(currentPage * itemsPerPage, filteredBookings.length)}
+        />
       )}
     </div>
   );

@@ -25,6 +25,10 @@ const incomeRoutes = require('./routes/income');
 const weightMigrationRoutes = require('./routes/weight-migration');
 const godownRoutes = require('./routes/godowns');
 const stockExceptionsRoutes = require('./routes/stock-exceptions');
+const companyRoutes = require('./routes/company');
+const activityRoutes = require('./routes/activities');
+const analyticsRoutes = require('./routes/analytics');
+const predictiveAnalyticsRoutes = require('./routes/predictive-analytics');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/transporters', transporterRoutes);
@@ -39,6 +43,10 @@ app.use('/api/income', incomeRoutes);
 app.use('/api/migration', weightMigrationRoutes);
 app.use('/api/godowns', godownRoutes);
 app.use('/api/stock-exceptions', stockExceptionsRoutes);
+app.use('/api/company', companyRoutes);
+app.use('/api/activities', activityRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/predictive-analytics', predictiveAnalyticsRoutes);
 
 // Test route
 app.get('/api/test', async (req, res) => {

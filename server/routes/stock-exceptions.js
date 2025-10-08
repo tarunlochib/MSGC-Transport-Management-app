@@ -38,7 +38,7 @@ router.get('/summary', async (req, res) => {
           some: {
             challan: {
               status: {
-                in: ['Generated', 'Active']
+                in: ['Generated', 'In Transit']
               }
             }
           }
@@ -68,7 +68,7 @@ router.get('/summary', async (req, res) => {
           some: {
             challan: {
               status: {
-                in: ['Completed', 'Delivered']
+                in: ['Delivered', 'Completed']
               }
             }
           }
@@ -112,9 +112,9 @@ router.get('/summary', async (req, res) => {
         oneDayOld, 
         twoDaysOld, 
         fourDaysOld,
-        oneDayOldWeight: Math.round(oneDayOldWeight),
-        twoDaysOldWeight: Math.round(twoDaysOldWeight),
-        fourDaysOldWeight: Math.round(fourDaysOldWeight)
+        oneDayOldWeight: oneDayOldWeight,
+        twoDaysOldWeight: twoDaysOldWeight,
+        fourDaysOldWeight: fourDaysOldWeight
       };
     };
 
@@ -192,6 +192,7 @@ router.get('/summary', async (req, res) => {
       inTransit: inTransitBookings.length,
       delivered: deliveredBookings.length
     };
+
 
     res.json({
       summary: {

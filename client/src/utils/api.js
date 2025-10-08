@@ -1,126 +1,61 @@
 import axios from 'axios';
 
-// Base API configuration
+// Create axios instance with default config
 const api = axios.create({
-  baseURL: '/api',
-  timeout: 10000,
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
+  timeout: 30000, // 30 seconds timeout
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Request interceptor for adding auth token
+// Request interceptor for adding auth token and logging
 api.interceptors.request.use(
   (config) => {
+    // Add auth token if available
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // Log API request
+    console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`);
+    
     return config;
   },
   (error) => {
+    console.error('API Request Error:', error);
     return Promise.reject(error);
   }
 );
 
-// Response interceptor for handling errors
+// Response interceptor for handling errors and logging
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Log successful API response
+    console.log(`API Response: ${response.config.method?.toUpperCase()} ${response.config.url} - ${response.status}`);
+    return response;
+  },
   (error) => {
+    // Log API error
+    console.error(`API Error: ${error.config?.method?.toUpperCase()} ${error.config?.url} - ${error.response?.status}`);
+    
+    // Handle specific error cases
     if (error.response?.status === 401) {
-      // Handle unauthorized access
+      // Unauthorized - redirect to login
       localStorage.removeItem('token');
+      localStorage.removeItem('user');
       window.location.href = '/login';
+    } else if (error.response?.status === 403) {
+      // Forbidden
+      console.error('Access forbidden');
+    } else if (error.response?.status >= 500) {
+      // Server error
+      console.error('Server error:', error.response.data);
     }
+    
     return Promise.reject(error);
   }
 );
 
-// Generic CRUD operations
-export const apiService = {
-  // GET request with pagination and filters
-  get: async (endpoint, params = {}) => {
-    const response = await api.get(endpoint, { params });
-    return response.data;
-  },
-
-  // POST request
-  post: async (endpoint, data = {}) => {
-    const response = await api.post(endpoint, data);
-    return response.data;
-  },
-
-  // PUT request
-  put: async (endpoint, data = {}) => {
-    const response = await api.put(endpoint, data);
-    return response.data;
-  },
-
-  // DELETE request
-  delete: async (endpoint) => {
-    const response = await api.delete(endpoint);
-    return response.data;
-  },
-
-  // PATCH request
-  patch: async (endpoint, data = {}) => {
-    const response = await api.patch(endpoint, data);
-    return response.data;
-  },
-};
-
-// Specific API functions for different entities
-export const bookingsAPI = {
-  getAll: (params) => apiService.get('/bookings', params),
-  getById: (id) => apiService.get(`/bookings/${id}`),
-  create: (data) => apiService.post('/bookings', data),
-  update: (id, data) => apiService.put(`/bookings/${id}`, data),
-  delete: (id) => apiService.delete(`/bookings/${id}`),
-};
-
-export const customersAPI = {
-  getAll: (params) => apiService.get('/customers', params),
-  getById: (id) => apiService.get(`/customers/${id}`),
-  create: (data) => apiService.post('/customers', data),
-  update: (id, data) => apiService.put(`/customers/${id}`, data),
-  delete: (id) => apiService.delete(`/customers/${id}`),
-};
-
-export const transportersAPI = {
-  getAll: (params) => apiService.get('/transporters', params),
-  getById: (id) => apiService.get(`/transporters/${id}`),
-  create: (data) => apiService.post('/transporters', data),
-  update: (id, data) => apiService.put(`/transporters/${id}`, data),
-  delete: (id) => apiService.delete(`/transporters/${id}`),
-};
-
-export const vehiclesAPI = {
-  getAll: (params) => apiService.get('/vehicles', params),
-  getById: (id) => apiService.get(`/vehicles/${id}`),
-  create: (data) => apiService.post('/vehicles', data),
-  update: (id, data) => apiService.put(`/vehicles/${id}`, data),
-  delete: (id) => apiService.delete(`/vehicles/${id}`),
-};
-
-export const driversAPI = {
-  getAll: (params) => apiService.get('/drivers', params),
-  getById: (id) => apiService.get(`/drivers/${id}`),
-  create: (data) => apiService.post('/drivers', data),
-  update: (id, data) => apiService.put(`/drivers/${id}`, data),
-  delete: (id) => apiService.delete(`/drivers/${id}`),
-};
-
-export const expensesAPI = {
-  getAll: (params) => apiService.get('/expenses', params),
-  getById: (id) => apiService.get(`/expenses/${id}`),
-  create: (data) => apiService.post('/expenses', data),
-  update: (id, data) => apiService.put(`/expenses/${id}`, data),
-  delete: (id) => apiService.delete(`/expenses/${id}`),
-};
-
-export const billingAPI = {
-  generateBill: (data) => apiService.post('/billing/generate', data),
-  getTransporters: () => apiService.get('/billing/transporters'),
-};
-
-export default api; 
+export default api;

@@ -30,7 +30,7 @@ const DashboardOverview = ({ data, loading }) => {
       color: 'from-emerald-500 to-green-500',
       bgColor: 'from-emerald-50 to-green-50',
       textColor: 'text-emerald-700',
-      change: data?.incomeChange || 0,
+      change: data?.incomeChange ?? 0,
       isCurrency: true
     },
     {

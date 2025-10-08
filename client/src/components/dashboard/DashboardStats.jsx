@@ -27,18 +27,6 @@ const DashboardStats = ({ stats, loading }) => {
       changeColor: stats?.incomeChange >= 0 ? 'text-emerald-600' : 'text-red-600'
     },
     {
-      title: 'Pending Payments',
-      value: `₹${stats?.pendingPayments?.toLocaleString() || '0'}`,
-      change: stats?.pendingPaymentsChange ? `${stats.pendingPaymentsChange >= 0 ? '+' : ''}${stats.pendingPaymentsChange.toFixed(1)}%` : '0%',
-      icon: (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      ),
-      bgColor: 'bg-yellow-500',
-      changeColor: stats?.pendingPaymentsChange >= 0 ? 'text-yellow-600' : 'text-green-600'
-    },
-    {
       title: 'Total Bookings',
       value: stats?.bookings?.toString() || '0',
       change: stats?.bookingsChange ? `${stats.bookingsChange >= 0 ? '+' : ''}${stats.bookingsChange.toFixed(1)}%` : '0%',

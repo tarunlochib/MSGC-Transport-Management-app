@@ -44,8 +44,14 @@ const IncomeListPage = () => {
         params.search = searchTerm;
       }
       
+      // Always show latest first by TRANSACTION DATE (not createdAt). If date is missing, fallback to createdAt.
       const response = await axios.get('/api/income', { params });
-      setIncome(response.data.data);
+      const rows = (response.data.data || []).slice().sort((a, b) => {
+        const aTime = new Date(a.date || a.createdAt || 0).getTime();
+        const bTime = new Date(b.date || b.createdAt || 0).getTime();
+        return bTime - aTime;
+      });
+      setIncome(rows);
       setPagination(response.data.pagination);
     } catch (error) {
       console.error('Error fetching income:', error);

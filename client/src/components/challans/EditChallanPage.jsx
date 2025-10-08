@@ -19,7 +19,9 @@ const EditChallanPage = () => {
     driverId: '',
     fromLocation: '',
     toLocation: '',
-    notes: ''
+    notes: '',
+    challanDate: '',
+    status: ''
   });
 
   const [transporters, setTransporters] = useState([]);
@@ -32,16 +34,14 @@ const EditChallanPage = () => {
   }, []);
 
   useEffect(() => {
-    if (transporters.length > 0) {
-      fetchChallanDetails();
-    }
-  }, [id, transporters]);
+    fetchChallanDetails();
+  }, [id]);
 
   useEffect(() => {
     if (formData.transportCompanyId) {
       fetchVehiclesAndDrivers();
     }
-  }, [formData.transportCompanyId, transporters]);
+  }, [formData.transportCompanyId]);
 
   const fetchInitialData = async () => {
     try {
@@ -61,6 +61,7 @@ const EditChallanPage = () => {
       const response = await axios.get(`/api/challans/${id}`);
       const challan = response.data;
 
+      console.log('Loaded challan data:', challan);
       setFormData({
         challanNumber: challan.challanNumber || '',
         transportCompanyId: challan.transportCompanyId || '',
@@ -68,7 +69,9 @@ const EditChallanPage = () => {
         driverId: challan.driverId || '',
         fromLocation: challan.fromLocation || '',
         toLocation: challan.toLocation || '',
-        notes: challan.notes || ''
+        notes: challan.notes || '',
+        challanDate: challan.createdAt ? new Date(challan.createdAt).toISOString().split('T')[0] : '',
+        status: challan.status || 'Generated'
       });
       setLoading(false);
     } catch (err) {
@@ -110,7 +113,14 @@ const EditChallanPage = () => {
       return;
     }
 
+    if (loading) {
+      setError('Please wait for data to load.');
+      setSubmitting(false);
+      return;
+    }
+
     try {
+      console.log('Submitting form data:', formData);
       await axios.put(`/api/challans/${id}`, formData);
       setSuccess('Challan updated successfully!');
       setTimeout(() => navigate('/challans'), 1500);
@@ -335,6 +345,29 @@ const EditChallanPage = () => {
                       placeholder="Enter destination location"
                     />
 
+                    <FormField
+                      label="Challan Date"
+                      name="challanDate"
+                      value={formData.challanDate}
+                      onChange={handleFormChange}
+                      type="date"
+                      placeholder="Select challan date"
+                    />
+
+                    <FormField
+                      label="Status"
+                      name="status"
+                      value={formData.status}
+                      onChange={handleFormChange}
+                      type="select"
+                      options={[
+                        { value: 'Generated', label: 'Generated' },
+                        { value: 'In Transit', label: 'In Transit' },
+                        { value: 'Delivered', label: 'Delivered' }
+                      ]}
+                      placeholder="Select status"
+                    />
+
                     <div className="md:col-span-2">
                       <FormField
                         label="Notes"
@@ -411,7 +444,7 @@ const EditChallanPage = () => {
               >
                 <button
                   type="submit"
-                  disabled={submitting}
+                  disabled={submitting || loading}
                   className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white py-3 px-4 rounded-xl font-semibold hover:from-green-700 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
                 >
                   {submitting ? (

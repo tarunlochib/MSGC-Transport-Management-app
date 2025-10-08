@@ -14,15 +14,18 @@ const ChallansListPage = () => {
   const [customYear, setCustomYear] = useState('');
   const [sortBy, setSortBy] = useState('createdAt');
   const [sortOrder, setSortOrder] = useState('desc');
+  const [viewMode, setViewMode] = useState('grouped'); // 'grouped' or 'individual'
+  const [expandedGroups, setExpandedGroups] = useState(new Set());
 
   useEffect(() => {
     fetchChallans();
-  }, []);
+  }, [viewMode]);
 
   const fetchChallans = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/challans');
+      const url = `/api/challans?grouped=${viewMode === 'grouped' ? 'true' : 'false'}`;
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error('Failed to fetch challans');
       }
@@ -49,6 +52,20 @@ const ChallansListPage = () => {
         setError(err.message);
       }
     }
+  };
+
+  const toggleGroupExpansion = (groupKey) => {
+    const newExpanded = new Set(expandedGroups);
+    if (newExpanded.has(groupKey)) {
+      newExpanded.delete(groupKey);
+    } else {
+      newExpanded.add(groupKey);
+    }
+    setExpandedGroups(newExpanded);
+  };
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('en-GB');
   };
 
   const getStatusColor = (status) => {
@@ -92,20 +109,54 @@ const ChallansListPage = () => {
   };
 
   // Filter and sort challans
-  const filteredAndSortedChallans = challans
+  const filteredAndSortedChallans = (challans || [])
     .filter(challan => {
-      const matchesSearch = 
-        challan.challanNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        challan.transportCompany?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        challan.truck?.vehicleNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        challan.driver?.name.toLowerCase().includes(searchTerm.toLowerCase());
+      if (!challan) return false;
       
-      const matchesStatus = statusFilter === 'all' || challan.status === statusFilter;
+      const matchesSearch = (() => {
+        if (viewMode === 'grouped') {
+          // For grouped challans, search in different properties
+          return (
+            (challan.vehicleNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (challan.destination || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (challan.transporters || []).some(transporter => 
+              transporter.toLowerCase().includes(searchTerm.toLowerCase())
+            ) ||
+            (challan.challanNumbers || []).some(number => 
+              number.toLowerCase().includes(searchTerm.toLowerCase())
+            )
+          );
+        } else {
+          // For individual challans, use original search logic
+          return (
+            (challan.challanNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (challan.transportCompany?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (challan.truck?.vehicleNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (challan.driver?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
+          );
+        }
+      })();
+      
+      const matchesStatus = (() => {
+        if (statusFilter === 'all') return true;
+        if (viewMode === 'grouped') {
+          return challan.overallStatus === statusFilter;
+        } else {
+          return challan.status === statusFilter;
+        }
+      })();
       
       const matchesMonth = (() => {
         if (monthFilter === 'all') return true;
         
-        const challanDate = new Date(challan.createdAt);
+        let challanDate;
+        if (viewMode === 'grouped') {
+          if (!challan.date) return false;
+          challanDate = new Date(challan.date);
+        } else {
+          if (!challan.createdAt) return false;
+          challanDate = new Date(challan.createdAt);
+        }
         const currentDate = new Date();
         
         switch (monthFilter) {
@@ -137,12 +188,22 @@ const ChallansListPage = () => {
       
       switch (sortBy) {
         case 'challanNumber':
-          aValue = a.challanNumber;
-          bValue = b.challanNumber;
+          if (viewMode === 'grouped') {
+            aValue = a.challanNumbers?.[0] || '';
+            bValue = b.challanNumbers?.[0] || '';
+          } else {
+            aValue = a.challanNumber || '';
+            bValue = b.challanNumber || '';
+          }
           break;
         case 'status':
-          aValue = a.status;
-          bValue = b.status;
+          if (viewMode === 'grouped') {
+            aValue = a.overallStatus || '';
+            bValue = b.overallStatus || '';
+          } else {
+            aValue = a.status || '';
+            bValue = b.status || '';
+          }
           break;
         case 'totalWeight':
           aValue = a.totalWeight || 0;
@@ -153,14 +214,19 @@ const ChallansListPage = () => {
           bValue = b.totalCharges || 0;
           break;
         default:
-          aValue = new Date(a.createdAt);
-          bValue = new Date(b.createdAt);
+          if (viewMode === 'grouped') {
+            aValue = a.date ? new Date(a.date) : new Date(0);
+            bValue = b.date ? new Date(b.date) : new Date(0);
+          } else {
+            aValue = a.createdAt ? new Date(a.createdAt) : new Date(0);
+            bValue = b.createdAt ? new Date(b.createdAt) : new Date(0);
+          }
       }
       
       if (sortOrder === 'asc') {
-        return aValue > bValue ? 1 : -1;
+        return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
       } else {
-        return aValue < bValue ? 1 : -1;
+        return aValue < bValue ? 1 : aValue > bValue ? -1 : 0;
       }
     });
 
@@ -230,27 +296,27 @@ const ChallansListPage = () => {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8">
         {/* Clean Header */}
-        <div className="mb-8">
+        <div className="mb-5 sm:mb-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-semibold text-gray-900">Challans</h1>
+              <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Challans</h1>
               <p className="text-gray-600 mt-1">Manage and track all challans</p>
             </div>
             <Link
               to="/challans/create"
-              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200"
+              className="inline-flex items-center px-3 py-2 sm:px-4 bg-blue-600 text-white text-sm font-medium rounded-lg shadow-sm hover:shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:ring-offset-2 transition-all duration-200"
             >
               <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
               </svg>
               Create Challan
             </Link>
-          </div>
         </div>
+      </div>
 
         {/* Error Alert */}
         {error && (
@@ -291,7 +357,7 @@ const ChallansListPage = () => {
                 <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
                   <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                  </svg>
+              </svg>
                 </div>
               </div>
               <div className="ml-3">
@@ -313,7 +379,7 @@ const ChallansListPage = () => {
                 <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
                   <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
+              </svg>
                 </div>
               </div>
               <div className="ml-3">
@@ -328,8 +394,8 @@ const ChallansListPage = () => {
               <div className="flex-shrink-0">
                 <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
                   <svg className="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
                 </div>
               </div>
               <div className="ml-3">
@@ -350,7 +416,7 @@ const ChallansListPage = () => {
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
+              </svg>
                   </div>
                   <input
                     type="text"
@@ -468,12 +534,39 @@ const ChallansListPage = () => {
           </div>
         </div>
 
+        {/* View Toggle */}
+        <div className="mb-4 flex items-center justify-between">
+          <div className="text-sm text-gray-600 font-medium">View Mode</div>
+          <div className="flex items-center bg-white rounded-lg p-1 shadow-sm border border-gray-200">
+            <button
+              onClick={() => setViewMode('grouped')}
+              className={`px-3 py-1 text-sm rounded-md transition-all duration-200 font-medium ${
+                viewMode === 'grouped'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              Grouped View
+            </button>
+            <button
+              onClick={() => setViewMode('individual')}
+              className={`px-3 py-1 text-sm rounded-md transition-all duration-200 font-medium ${
+                viewMode === 'individual'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              Individual View
+            </button>
+          </div>
+        </div>
+
         {/* Professional Table Design */}
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+        <div className="bg-white/90 backdrop-blur rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
           {/* Table Header */}
-          <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+          <div className="px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 border-b border-gray-200">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900">
                 Challans ({filteredAndSortedChallans.length})
               </h3>
               <div className="text-sm text-gray-500">
@@ -484,31 +577,215 @@ const ChallansListPage = () => {
 
           {/* Table Content */}
           {filteredAndSortedChallans.length === 0 ? (
-            <div className="text-center py-16">
-              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="text-center py-14">
+              <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3 animate-[fadeIn_0.35s_ease-out]">
                 <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>
-              <p className="text-gray-500 text-lg font-medium">No challans found</p>
+              <p className="text-gray-600 text-base font-medium">No challans found</p>
               {searchTerm || statusFilter !== 'all' ? (
-                <p className="text-sm text-gray-400 mt-2">Try adjusting your filters</p>
+                <p className="text-sm text-gray-400 mt-1">Try adjusting your filters</p>
               ) : (
                 <Link
                   to="/challans/create"
-                  className="inline-flex items-center mt-6 px-6 py-3 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors duration-200"
+                  className="inline-flex items-center mt-5 px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg shadow-sm hover:shadow-md hover:bg-blue-700 transition-all duration-200"
                 >
                   <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                   </svg>
                   Create First Challan
-                </Link>
+              </Link>
               )}
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
+              {viewMode === 'grouped' ? (
+                <div className="max-h-[70vh] overflow-y-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 sticky top-0 z-10">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Group Details
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Vehicle & Destination
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Total Weight & Items
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status & Transporters
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredAndSortedChallans.map((group) => (
+                      <React.Fragment key={group.groupKey}>
+                        {/* Main Group Row */}
+                        <tr 
+                          onClick={() => toggleGroupExpansion(group.groupKey)}
+                          className="hover:bg-blue-50/70 transition-colors duration-150 cursor-pointer border-l-4 border-blue-200 animate-[fadeInUp_0.25s_ease]"
+                        >
+                          {/* Group Details */}
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0 mr-3">
+                                {expandedGroups.has(group.groupKey) ? (
+                                  <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                  </svg>
+                                ) : (
+                                  <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                  </svg>
+                                )}
+                              </div>
+                              <div>
+                                <div className="text-xs text-blue-600 font-medium">{(group.challanNumbers || []).join(', ')}</div>
+                                <div className="text-xs text-gray-500">{(group.challanNumbers || []).length} challans</div>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Vehicle & Destination */}
+                          <td className="px-6 py-4">
+                            <div className="text-sm text-gray-900">
+                              <div className="font-medium">{group.vehicleNumber || 'N/A'}</div>
+                              <div className="text-gray-500 mt-1">→ {group.destination || 'N/A'}</div>
+                              <div className="text-xs text-gray-400">{formatDate(group.date || new Date())}</div>
+                            </div>
+                          </td>
+
+                          {/* Total Weight & Items */}
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">
+                              <div className="font-semibold">{group.totalWeight || 0} kg</div>
+                              <div className="text-gray-500">{group.totalItems || 0} items</div>
+                            </div>
+                          </td>
+
+                          {/* Status & Transporters */}
+                          <td className="px-6 py-4">
+                            <div className="text-sm">
+                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${
+                                (group.overallStatus || 'Generated') === 'Delivered' ? 'bg-green-50 text-green-700 border-green-200' :
+                                (group.overallStatus || 'Generated') === 'In Transit' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+                                'bg-blue-50 text-blue-700 border-blue-200'
+                              }`}>
+                                {group.overallStatus || 'Generated'}
+                              </span>
+                              <div className="text-xs text-gray-500 mt-1">
+                                {(group.transporters || []).length} transporters
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Actions */}
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <div className="flex items-center justify-end space-x-2">
+                              <span className="text-xs text-gray-400">
+                                {expandedGroups.has(group.groupKey) ? 'Click to collapse' : 'Click to expand'}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+
+                        {/* Expanded Individual Challans */}
+                          {expandedGroups.has(group.groupKey) && (group.challans || []).map((challan) => (
+                            <tr key={challan.id} className="bg-gray-50 hover:bg-gray-100 transition-colors duration-150 border-l-8 border-gray-300 ml-4 animate-[fadeIn_0.25s_ease]">
+                            {/* Challan Details */}
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center">
+                                <div className="w-20 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0 mr-3">
+                                  <span className="text-blue-600 font-semibold text-xs">
+                                    {challan.challanNumber}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(challan.status)}`}>
+                                    {getStatusIcon(challan.status)}
+                                    <span className="ml-1">{challan.status}</span>
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Transport Info */}
+                            <td className="px-6 py-4">
+                              <div className="text-sm text-gray-900">
+                                <div className="font-medium">{challan.transportCompany?.name || 'N/A'}</div>
+                                <div className="text-gray-500 mt-1">
+                                  <div>Vehicle: {challan.truck?.vehicleNumber || 'N/A'}</div>
+                                  <div>Driver: {challan.driver?.name || 'N/A'}</div>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Weight & Charges */}
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">
+                                <div className="font-semibold">{challan.totalWeight || 0} kg</div>
+                                <div className="text-gray-500">₹{(challan.totalCharges || 0).toLocaleString()}</div>
+                              </div>
+                            </td>
+
+                            {/* Date & Time */}
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-900">
+                                <div>{format(new Date(challan.createdAt), 'MMM dd, yyyy')}</div>
+                                <div className="text-gray-500">{format(new Date(challan.createdAt), 'HH:mm')}</div>
+                              </div>
+                            </td>
+
+                            {/* Actions */}
+                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                              <div className="flex items-center justify-end space-x-2">
+                                <Link
+                                  to={`/challans/${challan.id}`}
+                                  className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-150"
+                                  title="View Details"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                  </svg>
+                                </Link>
+                            <Link
+                              to={`/challans/${challan.id}/edit`}
+                              className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors duration-150"
+                              title="Edit Challan"
+                            >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                </Link>
+                                <button
+                                  onClick={() => handleDelete(challan.id)}
+                                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-150"
+                                  title="Delete Challan"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </React.Fragment>
+                    ))}
+                  </tbody>
+                </table>
+                </div>
+              ) : (
+                <div className="relative overflow-x-auto shadow-sm sm:rounded-lg border border-gray-200 max-h-[70vh] overflow-y-auto">
+                  {/* Individual View Table */}
+                <table className="w-full">
+                  <thead className="bg-gray-50 sticky top-0 z-10">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Challan Details
@@ -517,102 +794,102 @@ const ChallansListPage = () => {
                       Transport Info
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Weight & Charges
+                        Weight & Charges
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Date & Time
+                        Date & Time
                     </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Actions
                     </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredAndSortedChallans.map((challan) => (
-                    <tr key={challan.id} className="hover:bg-gray-50 transition-colors duration-150">
-                      {/* Challan Details */}
+                    {filteredAndSortedChallans.map((challan) => (
+                      <tr key={challan.id} className="hover:bg-gray-50 transition-colors duration-150">
+                        {/* Challan Details */}
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="w-20 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0 mr-3">
-                            <span className="text-blue-600 font-semibold text-xs">
-                              {challan.challanNumber}
-                            </span>
+                          <div className="flex items-center">
+                            <div className="w-20 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0 mr-3">
+                              <span className="text-blue-600 font-semibold text-xs">
+                            {challan.challanNumber}
+                              </span>
                           </div>
-                          <div>
-                            <div className="mt-1">
+                            <div>
                               <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(challan.status)}`}>
                                 {getStatusIcon(challan.status)}
                                 <span className="ml-1">{challan.status}</span>
                               </span>
-                            </div>
                           </div>
                         </div>
                       </td>
 
-                      {/* Transport Info */}
-                      <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">
-                          <div className="font-medium">{challan.transportCompany?.name || 'N/A'}</div>
-                          <div className="text-gray-500 mt-1">
-                            <div>Vehicle: {challan.truck?.vehicleNumber || 'N/A'}</div>
-                            <div>Driver: {challan.driver?.name || 'N/A'}</div>
+                        {/* Transport Info */}
+                        <td className="px-6 py-4">
+                          <div className="text-sm text-gray-900">
+                            <div className="font-medium">{challan.transportCompany?.name || 'N/A'}</div>
+                            <div className="text-gray-500 mt-1">
+                              <div>Vehicle: {challan.truck?.vehicleNumber || 'N/A'}</div>
+                              <div>Driver: {challan.driver?.name || 'N/A'}</div>
                           </div>
                         </div>
                       </td>
 
-                      {/* Weight & Charges */}
+                        {/* Weight & Charges */}
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-900">
-                          <div className="font-semibold">{challan.totalWeight || 0} kg</div>
-                          <div className="text-gray-500">₹{(challan.totalCharges || 0).toLocaleString()}</div>
+                            <div className="font-semibold">{challan.totalWeight || 0} kg</div>
+                            <div className="text-gray-500">₹{(challan.totalCharges || 0).toLocaleString()}</div>
                         </div>
                       </td>
 
-                      {/* Date & Time */}
+                        {/* Date & Time */}
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
-                          <div>{format(new Date(challan.createdAt), 'MMM dd, yyyy')}</div>
-                          <div className="text-gray-500">{format(new Date(challan.createdAt), 'HH:mm')}</div>
-                        </div>
+                          <div className="text-sm text-gray-900">
+                            <div>{format(new Date(challan.createdAt), 'MMM dd, yyyy')}</div>
+                            <div className="text-gray-500">{format(new Date(challan.createdAt), 'HH:mm')}</div>
+                          </div>
                       </td>
 
-                      {/* Actions */}
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div className="flex items-center justify-end space-x-2">
-                          <Link
-                            to={`/challans/${challan.id}`}
-                            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-150"
-                            title="View Details"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                            </svg>
+                        {/* Actions */}
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <div className="flex items-center justify-end space-x-2">
+                            <Link
+                              to={`/challans/${challan.id}`}
+                              className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-150"
+                              title="View Details"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                            </Link>
+                            <Link
+                              to={`/challans/${challan.id}/edit`}
+                              className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors duration-150"
+                              title="Edit Challan"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
                           </Link>
-                          <Link
-                            to={`/challans/${challan.id}/edit`}
-                            className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors duration-150"
-                            title="Edit Challan"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                          </Link>
-                          <button
+                            <button
                             onClick={() => handleDelete(challan.id)}
-                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-150"
-                            title="Delete Challan"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
+                              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-150"
+                              title="Delete Challan"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
                         </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
             </div>
           )}
         </div>

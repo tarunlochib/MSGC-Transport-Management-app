@@ -120,6 +120,7 @@ const ExpensesFilters = ({ filters, setFilters, vehicles, itemsPerPage, setItems
                   <option value="labour">Labour Payment</option>
                   <option value="salary">Salary</option>
                   <option value="office_rent">Office Rent</option>
+                  <option value="vehicle_rent">Vehicle Rent</option>
                   <option value="utilities">Utilities</option>
                   <option value="marketing">Marketing & Advertising</option>
                   <option value="legal">Legal & Professional</option>

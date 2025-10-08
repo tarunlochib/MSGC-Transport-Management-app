@@ -42,6 +42,15 @@ import CreateChallanPage from './components/challans/CreateChallanPage';
 import EditChallanPage from './components/challans/EditChallanPage';
 import ChallanDetailsPage from './components/challans/ChallanDetailsPage';
 
+// Import settings components
+import CompanyProfilePage from './components/settings/CompanyProfilePage';
+import UserProfilePage from './components/settings/UserProfilePage';
+import NotificationPreferencesPage from './components/settings/NotificationPreferencesPage';
+import SystemReportsPage from './components/settings/SystemReportsPage';
+import UserSettingsPage from './components/settings/UserSettingsPage';
+import AnalyticsPage from './components/analytics/AnalyticsPage';
+import UserActivityPage from './components/settings/UserActivityPage';
+
 // Import income components
 import IncomeListPage from './components/income/IncomeListPage';
 import CreateIncomePage from './components/income/CreateIncomePage';
@@ -131,6 +140,17 @@ function App() {
                 <Route path="/challans/create" element={<CreateChallanPage />} />
                 <Route path="/challans/:id" element={<ChallanDetailsPage />} />
                 <Route path="/challans/:id/edit" element={<EditChallanPage />} />
+                
+                {/* Analytics */}
+                <Route path="/analytics" element={<AnalyticsPage />} />
+                
+                {/* Settings */}
+            <Route path="/settings/company-profile" element={<CompanyProfilePage />} />
+            <Route path="/settings/user-profile" element={<UserProfilePage />} />
+            <Route path="/settings/notification-preferences" element={<NotificationPreferencesPage />} />
+            <Route path="/settings/system-reports" element={<SystemReportsPage />} />
+            <Route path="/settings/user-settings" element={<UserSettingsPage />} />
+            <Route path="/settings/user-activity" element={<UserActivityPage />} />
                 
                 {/* Default redirect */}
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />

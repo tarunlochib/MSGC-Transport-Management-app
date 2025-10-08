@@ -10,38 +10,39 @@ import TransporterWeightContribution from './TransporterWeightContribution';
 import GodownWeightTable from './GodownWeightTable';
 import CustomerOverview from './CustomerOverview';
 import StockExceptionsAlert from './StockExceptionsAlert';
+import performanceOptimizer from '../../utils/performanceOptimization';
 import api from '../../utils/api';
 
 const DashboardHome = () => {
 
-  const [dashboardData, setDashboardData] = useState({
-    totalRevenue: 0,
-    pendingPayments: 0,
-    totalBookings: 0,
-    activeVehicles: 0,
-    allBookings: [],
-    recentBookings: [],
-    allExpenses: [],
-    recentExpenses: [],
+     const [dashboardData, setDashboardData] = useState({
+     totalRevenue: 0,
+     pendingPayments: 0,
+     totalBookings: 0,
+     activeVehicles: 0,
+     allBookings: [],
+     recentBookings: [],
+     allExpenses: [],
+     recentExpenses: [],
     customers: [],
-    monthlyRevenueData: {},
-    monthlyExpensesData: {},
-    dailyRevenueData: {},
-    dailyExpensesData: {},
-    revenueChange: 0,
-    bookingsChange: 0,
-    expensesChange: 0,
-    stats: {
-      revenue: 0,
-      pendingPayments: 0,
-      bookings: 0,
-      vehicles: 0,
-      drivers: 0,
-      customers: 0,
-      transporters: 0,
-      expenses: 0
-    }
-  });
+     monthlyRevenueData: {},
+     monthlyExpensesData: {},
+     dailyRevenueData: {},
+     dailyExpensesData: {},
+     revenueChange: 0,
+     bookingsChange: 0,
+     expensesChange: 0,
+     stats: {
+       revenue: 0,
+      income: 0,
+       bookings: 0,
+       vehicles: 0,
+       drivers: 0,
+       customers: 0,
+       transporters: 0,
+       expenses: 0
+     }
+   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [apiStatus, setApiStatus] = useState('online');
@@ -50,30 +51,31 @@ const DashboardHome = () => {
   const [challans, setChallans] = useState(null);
   const [isBackgroundRefreshing, setIsBackgroundRefreshing] = useState(false);
 
-  const refreshRecentData = async () => {
-    try {
-      const [bookings, expenses] = await Promise.all([
-        api.get('/bookings'),
-        api.get('/expenses')
-      ]);
+     const refreshRecentData = async () => {
+     try {
+      // Use cached data for recent updates to avoid unnecessary API calls
+       const [bookings, expenses] = await Promise.all([
+        performanceOptimizer.getCachedData('bookings', () => api.get('/bookings'), 60000), // 1 minute
+        performanceOptimizer.getCachedData('expenses', () => api.get('/expenses'), 120000) // 2 minutes
+       ]);
 
-      // Update both all data and recent data for charts
-      // Note: We need transporters data to calculate monthly revenue, so we'll skip monthly data in refresh
-      setDashboardData(prev => ({
-        ...prev,
-        allBookings: bookings.data,
-        recentBookings: bookings.data
-          .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-          .slice(0, 5),
-        allExpenses: expenses.data,
-        recentExpenses: expenses.data
-          .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-          .slice(0, 5)
-      }));
-    } catch (err) {
-      console.error('Error refreshing recent data:', err);
-    }
-  };
+       // Update both all data and recent data for charts
+       // Note: We need transporters data to calculate monthly revenue, so we'll skip monthly data in refresh
+       setDashboardData(prev => ({
+         ...prev,
+         allBookings: bookings.data,
+         recentBookings: bookings.data
+           .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+           .slice(0, 5),
+         allExpenses: expenses.data,
+         recentExpenses: expenses.data
+           .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+           .slice(0, 5)
+       }));
+     } catch (err) {
+       console.error('Error refreshing recent data:', err);
+     }
+   };
 
   const fetchDashboardData = async (showLoading = true) => {
     try {
@@ -84,144 +86,145 @@ const DashboardHome = () => {
         setIsBackgroundRefreshing(true);
       }
 
-      // Use original API calls (temporarily reverted for debugging)
+      // Optimized API calls with automatic caching and batching
+      const apiCalls = [
+        () => api.get('/bookings'),
+        () => api.get('/expenses'),
+        () => api.get('/vehicles'),
+        () => api.get('/transporters'),
+        () => api.get('/drivers'),
+        () => api.get('/customers'),
+        // Income endpoint now returns all records when no pagination is specified
+        () => api.get('/income'),
+        () => api.get('/challans')
+      ];
+
+      // Use intelligent caching for each API call with reduced TTL for critical data
       const [bookings, expenses, vehicles, transporters, drivers, customers, income, challans] = await Promise.all([
-        api.get('/bookings'),
-        api.get('/expenses'),
-        api.get('/vehicles'),
-        api.get('/transporters'),
-        api.get('/drivers'),
-        api.get('/customers'),
-        api.get('/income'),
-        api.get('/challans')
+        performanceOptimizer.getCachedData('bookings', apiCalls[0], 60000), // 1 minute (critical)
+        performanceOptimizer.getCachedData('expenses', apiCalls[1], 120000), // 2 minutes
+        performanceOptimizer.getCachedData('vehicles', apiCalls[2], 300000), // 5 minutes (less frequent)
+        performanceOptimizer.getCachedData('transporters', apiCalls[3], 300000), // 5 minutes
+        performanceOptimizer.getCachedData('drivers', apiCalls[4], 300000), // 5 minutes
+        performanceOptimizer.getCachedData('customers', apiCalls[5], 300000), // 5 minutes
+        performanceOptimizer.getCachedData('income', apiCalls[6], 120000), // 2 minutes
+        performanceOptimizer.getCachedData('challans', apiCalls[7], 60000) // 1 minute (critical)
       ]);
 
-        // Calculate total revenue from all bookings (commission + local cartage - your real earnings)
-        const totalRevenue = bookings.data.reduce((sum, booking) => {
-          const transporter = transporters.data.find(t => t.id === booking.transporterId);
-          const commissionAmount = (booking.weightKg || 0) * (transporter?.commissionRate || 0);
-          const localCartage = booking.localCartageCharges || 0;
-          return sum + commissionAmount + localCartage;
-        }, 0);
+        // currentMonthRevenue will be computed after month filters are prepared
 
-        // Calculate monthly revenue data (commission + local cartage) for charts
-        const monthlyRevenueData = {};
-        const monthlyExpensesData = {};
+       // Calculate monthly revenue data (commission + local cartage) for charts
+       const monthlyRevenueData = {};
+       const monthlyExpensesData = {};
+       
+       // Initialize monthly data
+       const currentDate = new Date();
+       for (let i = 11; i >= 0; i--) {
+         const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
+         const monthKey = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+         monthlyRevenueData[monthKey] = 0;
+         monthlyExpensesData[monthKey] = 0;
+       }
+       
+       // Calculate monthly revenue (commission + local cartage)
+       bookings.data.forEach(booking => {
+         const transporter = transporters.data.find(t => t.id === booking.transporterId);
+         const commissionAmount = (booking.weightKg || 0) * (transporter?.commissionRate || 0);
+         const localCartage = booking.localCartageCharges || 0;
+         const monthlyRevenue = commissionAmount + localCartage;
+         
+          // Use bookingDate (business date) instead of createdAt (system date)
+          const bookingDate = new Date(booking.bookingDate);
+         const monthKey = bookingDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+         
+         if (monthlyRevenueData.hasOwnProperty(monthKey)) {
+           monthlyRevenueData[monthKey] += monthlyRevenue;
+         }
+       });
+       
+      // Calculate monthly expenses
+      expenses.data.forEach(expense => {
+        const expenseDate = new Date(expense.date); // Use expense.date instead of createdAt
+        const monthKey = expenseDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
         
-        // Initialize monthly data
-        const currentDate = new Date();
-        for (let i = 11; i >= 0; i--) {
-          const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
-          const monthKey = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-          monthlyRevenueData[monthKey] = 0;
-          monthlyExpensesData[monthKey] = 0;
+        if (monthlyExpensesData.hasOwnProperty(monthKey)) {
+          monthlyExpensesData[monthKey] += expense.amount || 0;
         }
-        
-        // Calculate monthly revenue (commission + local cartage)
-        bookings.data.forEach(booking => {
-          const transporter = transporters.data.find(t => t.id === booking.transporterId);
-          const commissionAmount = (booking.weightKg || 0) * (transporter?.commissionRate || 0);
-          const localCartage = booking.localCartageCharges || 0;
-          const monthlyRevenue = commissionAmount + localCartage;
-          
-          const bookingDate = new Date(booking.createdAt);
-          const monthKey = bookingDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-          
-          if (monthlyRevenueData.hasOwnProperty(monthKey)) {
-            monthlyRevenueData[monthKey] += monthlyRevenue;
-          }
-        });
-        
-        // Calculate monthly expenses
-        expenses.data.forEach(expense => {
-          const expenseDate = new Date(expense.createdAt);
-          const monthKey = expenseDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-          
-          if (monthlyExpensesData.hasOwnProperty(monthKey)) {
-            monthlyExpensesData[monthKey] += expense.amount || 0;
-          }
-        });
+      });
 
-        // Calculate daily revenue data (commission + local cartage) for daily charts
-        const dailyRevenueData = {};
-        const dailyExpensesData = {};
-        
-        // Get current month for daily view
-        const today = new Date();
-        const todayMonth = today.getMonth();
-        const todayYear = today.getFullYear();
-        
-        // Calculate daily revenue for current month
-        bookings.data.forEach(booking => {
-          const bookingDate = new Date(booking.createdAt);
-          if (bookingDate.getMonth() === todayMonth && bookingDate.getFullYear() === todayYear) {
-            const day = bookingDate.getDate();
-            const transporter = transporters.data.find(t => t.id === booking.transporterId);
-            const commissionAmount = (booking.weightKg || 0) * (transporter?.commissionRate || 0);
-            const localCartage = booking.localCartageCharges || 0;
+       // Calculate daily revenue data (commission + local cartage) for daily charts
+       const dailyRevenueData = {};
+       const dailyExpensesData = {};
+       
+       // Get current month for daily view
+       const today = new Date();
+       const todayMonth = today.getMonth();
+       const todayYear = today.getFullYear();
+       
+       // Calculate daily revenue for current month
+       bookings.data.forEach(booking => {
+          // Use bookingDate (business date) instead of createdAt (system date)
+          const bookingDate = new Date(booking.bookingDate);
+         if (bookingDate.getMonth() === todayMonth && bookingDate.getFullYear() === todayYear) {
+           const day = bookingDate.getDate();
+           const transporter = transporters.data.find(t => t.id === booking.transporterId);
+           const commissionAmount = (booking.weightKg || 0) * (transporter?.commissionRate || 0);
+           const localCartage = booking.localCartageCharges || 0;
             const dailyRevenue = commissionAmount + localCartage;
-            
-            if (!dailyRevenueData[day]) {
-              dailyRevenueData[day] = 0;
-            }
-            dailyRevenueData[day] += dailyRevenue;
-          }
-        });
-        
-        // Calculate daily expenses for current month
-        expenses.data.forEach(expense => {
-          const expenseDate = new Date(expense.createdAt);
-          if (expenseDate.getMonth() === todayMonth && expenseDate.getFullYear() === todayYear) {
-            const day = expenseDate.getDate();
-            
-            if (!dailyExpensesData[day]) {
-              dailyExpensesData[day] = 0;
-            }
-            dailyExpensesData[day] += expense.amount || 0;
-          }
-        });
-
-        // Calculate pending payments (only from unpaid bookings - commission + local cartage)
-        const pendingPayments = bookings.data.reduce((sum, booking) => {
-          const transporter = transporters.data.find(t => t.id === booking.transporterId);
-          const commissionAmount = (booking.weightKg || 0) * (transporter?.commissionRate || 0);
-          const localCartage = booking.localCartageCharges || 0;
+           
+           if (!dailyRevenueData[day]) {
+             dailyRevenueData[day] = 0;
+           }
+           dailyRevenueData[day] += dailyRevenue;
+         }
+       });
+       
+      // Calculate daily expenses for current month
+      expenses.data.forEach(expense => {
+        const expenseDate = new Date(expense.date); // Use expense.date instead of createdAt
+        if (expenseDate.getMonth() === todayMonth && expenseDate.getFullYear() === todayYear) {
+          const day = expenseDate.getDate();
           
-          if (booking.paymentMethod?.toLowerCase() !== 'paid') {
-            return sum + commissionAmount + localCartage;
+          if (!dailyExpensesData[day]) {
+            dailyExpensesData[day] = 0;
           }
-          return sum;
-        }, 0);
+          dailyExpensesData[day] += expense.amount || 0;
+        }
+      });
 
-        // Calculate percentage changes (current month vs previous month)
-        const now = new Date();
-        const currentMonth = now.getMonth();
-        const currentYear = now.getFullYear();
-        
+        // Commission-based model: no pending bills metric required
+
+      // Calculate percentage changes (current month vs previous month)
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+      
         // Filter data for current month only
-        const currentMonthBookings = bookings.data.filter(booking => {
-          const bookingDate = new Date(booking.createdAt);
-          return bookingDate.getMonth() === currentMonth && bookingDate.getFullYear() === currentYear;
-        });
-        
-        const previousMonthBookings = bookings.data.filter(booking => {
-          const bookingDate = new Date(booking.createdAt);
-          const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
-          const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-          return bookingDate.getMonth() === prevMonth && bookingDate.getFullYear() === prevYear;
-        });
+      const currentMonthBookings = bookings.data.filter(booking => {
+          // Use bookingDate (business date) instead of createdAt (system date)
+          const bookingDate = new Date(booking.bookingDate);
+        return bookingDate.getMonth() === currentMonth && bookingDate.getFullYear() === currentYear;
+      });
+      
+      const previousMonthBookings = bookings.data.filter(booking => {
+          // Use bookingDate (business date) instead of createdAt (system date)
+          const bookingDate = new Date(booking.bookingDate);
+        const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+        const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+        return bookingDate.getMonth() === prevMonth && bookingDate.getFullYear() === prevYear;
+      });
 
-        const currentMonthExpenses = expenses.data.filter(expense => {
-          const expenseDate = new Date(expense.createdAt);
-          return expenseDate.getMonth() === currentMonth && expenseDate.getFullYear() === currentYear;
-        });
-        
-        const previousMonthExpenses = expenses.data.filter(expense => {
-          const expenseDate = new Date(expense.createdAt);
-          const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
-          const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-          return expenseDate.getMonth() === prevMonth && expenseDate.getFullYear() === prevYear;
-        });
+      const currentMonthExpenses = expenses.data.filter(expense => {
+        const expenseDate = new Date(expense.createdAt);
+        return expenseDate.getMonth() === currentMonth && expenseDate.getFullYear() === currentYear;
+      });
+      
+      const previousMonthExpenses = expenses.data.filter(expense => {
+        const expenseDate = new Date(expense.createdAt);
+        const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+        const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+        return expenseDate.getMonth() === prevMonth && expenseDate.getFullYear() === prevYear;
+      });
 
         // Get all active vehicles (not filtered by month)
         const allActiveVehicles = vehicles.data.filter(vehicle => vehicle.status === 'Active');
@@ -251,13 +254,13 @@ const DashboardHome = () => {
           return transporterDate.getMonth() === currentMonth && transporterDate.getFullYear() === currentYear;
         });
 
-        const bookingsChange = previousMonthBookings.length > 0 
-          ? ((currentMonthBookings.length - previousMonthBookings.length) / previousMonthBookings.length) * 100
+      const bookingsChange = previousMonthBookings.length > 0 
+        ? ((currentMonthBookings.length - previousMonthBookings.length) / previousMonthBookings.length) * 100
           : currentMonthBookings.length > 0 ? 100 : 0; // Show 100% increase if we have current bookings but no previous
-        
-        const expensesChange = previousMonthExpenses.length > 0
-          ? ((currentMonthExpenses.length - previousMonthExpenses.length) / previousMonthExpenses.length) * 100
-          : 0;
+      
+      const expensesChange = previousMonthExpenses.length > 0
+        ? ((currentMonthExpenses.length - previousMonthExpenses.length) / previousMonthExpenses.length) * 100
+        : 0;
 
         // Calculate previous month revenue
         const previousMonthRevenue = previousMonthBookings.reduce((sum, booking) => {
@@ -267,9 +270,17 @@ const DashboardHome = () => {
           return sum + commissionAmount + localCartage;
         }, 0);
 
+        // Calculate current month revenue from bookings (commission + local cartage)
+        const currentMonthRevenue = currentMonthBookings.reduce((sum, booking) => {
+              const transporter = transporters.data.find(t => t.id === booking.transporterId);
+              const commissionAmount = (booking.weightKg || 0) * (transporter?.commissionRate || 0);
+              const localCartage = booking.localCartageCharges || 0;
+              return sum + commissionAmount + localCartage;
+        }, 0);
+
         const revenueChange = previousMonthRevenue > 0
-          ? ((totalRevenue - previousMonthRevenue) / previousMonthRevenue) * 100
-          : totalRevenue > 0 ? 100 : 0; // Show 100% increase if we have current revenue but no previous
+          ? ((currentMonthRevenue - previousMonthRevenue) / previousMonthRevenue) * 100
+          : currentMonthRevenue > 0 ? 100 : 0; // Show 100% increase if we have current revenue but no previous
 
         // Calculate income change (current month vs previous month)
         const currentMonthIncome = income.data.data ? income.data.data.filter(inc => {
@@ -292,12 +303,12 @@ const DashboardHome = () => {
           : currentMonthIncomeTotal > 0 ? 100 : 0; // Show 100% increase if we have current income but no previous
 
         // Calculate weight change (current month vs previous month)
-        const currentMonthWeight = currentMonthBookings.reduce((sum, booking) => sum + (booking.weightKg || 0), 0);
+        const currentMonthWeightTotal = currentMonthBookings.reduce((sum, booking) => sum + (booking.weightKg || 0), 0);
         const previousMonthWeight = previousMonthBookings.reduce((sum, booking) => sum + (booking.weightKg || 0), 0);
         
         const weightChange = previousMonthWeight > 0
-          ? ((currentMonthWeight - previousMonthWeight) / previousMonthWeight) * 100
-          : currentMonthWeight > 0 ? 100 : 0; // Show 100% increase if we have current weight but no previous
+          ? ((currentMonthWeightTotal - previousMonthWeight) / previousMonthWeight) * 100
+          : currentMonthWeightTotal > 0 ? 100 : 0; // Show 100% increase if we have current weight but no previous
 
         // Calculate today's metrics
         const todayDate = new Date();
@@ -335,32 +346,7 @@ const DashboardHome = () => {
         }) : [];
         const todayIncomeTotal = todayIncome.reduce((sum, inc) => sum + (inc.amount || 0), 0);
 
-        // Calculate pending payments change
-        const currentMonthPendingPayments = currentMonthBookings.reduce((sum, booking) => {
-          const transporter = transporters.data.find(t => t.id === booking.transporterId);
-          const commissionAmount = (booking.weightKg || 0) * (transporter?.commissionRate || 0);
-          const localCartage = booking.localCartageCharges || 0;
-          
-          if (booking.paymentMethod?.toLowerCase() !== 'paid') {
-            return sum + commissionAmount + localCartage;
-          }
-          return sum;
-        }, 0);
-
-        const previousMonthPendingPayments = previousMonthBookings.reduce((sum, booking) => {
-          const transporter = transporters.data.find(t => t.id === booking.transporterId);
-          const commissionAmount = (booking.weightKg || 0) * (transporter?.commissionRate || 0);
-          const localCartage = booking.localCartageCharges || 0;
-          
-          if (booking.paymentMethod?.toLowerCase() !== 'paid') {
-            return sum + commissionAmount + localCartage;
-          }
-          return sum;
-        }, 0);
-
-      const pendingPaymentsChange = previousMonthPendingPayments > 0
-        ? ((currentMonthPendingPayments - previousMonthPendingPayments) / previousMonthPendingPayments) * 100
-        : 0;
+        // No pending bills change in commission model
 
         // Calculate previous month data for comparison
         const previousMonthVehicles = vehicles.data.filter(v => {
@@ -399,37 +385,29 @@ const DashboardHome = () => {
       // Generate alerts based on data
       const generatedAlerts = [];
       
-      if (pendingPayments > 100000) {
+      // Removed pending bills alert – not applicable in commission-based model
+
+        if (allActiveVehicles.length < 5) {
         generatedAlerts.push({
-          id: 'high-pending',
-          title: 'High Pending Payments',
-          message: `₹${pendingPayments.toLocaleString()} in pending payments requires attention.`,
+          id: 'low-vehicles',
+          title: 'Low Active Vehicles',
+            message: `Only ${allActiveVehicles.length} active vehicles available.`,
+            type: 'warning',
+          timestamp: new Date().toISOString()
+        });
+      }
+
+        if (currentMonthBookings.filter(b => b.status === 'pending').length > 10) {
+        generatedAlerts.push({
+          id: 'pending-bookings',
+          title: 'Multiple Pending Bookings',
+          message: 'Several bookings are pending approval. Please review them.',
           type: 'warning',
           timestamp: new Date().toISOString()
         });
       }
 
-        if (allActiveVehicles.length < 5) {
-          generatedAlerts.push({
-            id: 'low-vehicles',
-            title: 'Low Active Vehicles',
-            message: `Only ${allActiveVehicles.length} active vehicles available.`,
-            type: 'warning',
-            timestamp: new Date().toISOString()
-          });
-        }
-
-        if (currentMonthBookings.filter(b => b.status === 'pending').length > 10) {
-          generatedAlerts.push({
-            id: 'pending-bookings',
-            title: 'Multiple Pending Bookings',
-            message: 'Several bookings are pending approval. Please review them.',
-            type: 'warning',
-            timestamp: new Date().toISOString()
-          });
-        }
-
-        setAlerts(generatedAlerts);
+      setAlerts(generatedAlerts);
 
         // Store transporters data for the weight contribution component
         setTransporters(transporters);
@@ -437,16 +415,17 @@ const DashboardHome = () => {
         // Store challans data for the godown weight table
         setChallans(challans);
 
-        const totalIncome = income.data.data ? income.data.data.reduce((sum, inc) => sum + (inc.amount || 0), 0) : 0;
+        // Show income for current month only (actual money received)
+        const totalIncome = currentMonthIncomeTotal;
              
-             // Calculate total weight from all bookings
-             const totalWeight = bookings.data.reduce((sum, booking) => sum + (booking.weightKg || 0), 0);
-             
+             // Use the already calculated current month weight
+             const currentMonthWeight = currentMonthWeightTotal;
+
              setDashboardData({
-         totalRevenue,
+         totalRevenue: currentMonthRevenue,
          totalIncome,
          totalBookings: currentMonthBookings.length,
-         totalWeight,
+         totalWeight: currentMonthWeight,
          // Today's metrics
          todayWeight,
          todayRevenue,
@@ -467,14 +446,14 @@ const DashboardHome = () => {
          dailyRevenueData, // Daily revenue (commission + local cartage) for daily charts
          dailyExpensesData, // Daily expenses for daily charts
          revenueChange,
+         incomeChange,
          bookingsChange,
          expensesChange,
          weightChange,
-         pendingPaymentsChange,
+         // pendingPaymentsChange removed (commission-based model)
                   stats: {
-            revenue: totalRevenue, // This is now commission earnings only
-            income: income.data.data ? income.data.data.reduce((sum, inc) => sum + (inc.amount || 0), 0) : 0,
-            pendingPayments,
+            revenue: currentMonthRevenue,
+            income: currentMonthIncomeTotal,
             bookings: currentMonthBookings.length, // Current month bookings only
             vehicles: allActiveVehicles.length, // All active vehicles (not filtered by month)
             drivers: drivers.data.filter(d => d.status === 'Active').length, // All active drivers (not filtered by month)
@@ -490,7 +469,6 @@ const DashboardHome = () => {
             // Add percentage changes
             revenueChange,
             incomeChange,
-            pendingPaymentsChange,
             bookingsChange,
             weightChange,
             driversChange,
@@ -498,23 +476,23 @@ const DashboardHome = () => {
           }
         });
 
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching dashboard data:', err);
-        setError('Failed to load dashboard data');
-      } finally {
-        setLoading(false);
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err);
+      setError('Failed to load dashboard data');
+    } finally {
+      setLoading(false);
         setIsBackgroundRefreshing(false);
-      }
+    }
   };
 
   useEffect(() => {
     fetchDashboardData();
     
-    // Auto-refresh every 30 seconds - only refresh data, don't show loading
+    // Auto-refresh every 15 seconds - only refresh data, don't show loading
     const interval = setInterval(() => {
       fetchDashboardData(false); // Pass false to not show loading spinner
-    }, 30000);
+    }, 15000);
     return () => clearInterval(interval);
   }, []);
 
@@ -585,7 +563,7 @@ const DashboardHome = () => {
             loading={loading}
           />
         </div>
-
+        
         {/* Godown Weight Table - Current Inventory Status */}
         <div className="mb-6">
           <GodownWeightTable 
@@ -603,27 +581,28 @@ const DashboardHome = () => {
             bookings={dashboardData.allBookings}
             loading={loading}
           />
-        </div>
-
+          </div>
+          
         {/* Analytics & Insights Section */}
         <div className="space-y-6">
           {/* Charts - Historical Trends & Analytics */}
           <div className="mb-6">
-            <DashboardCharts 
-              recentBookings={dashboardData.recentBookings}
-              recentExpenses={dashboardData.recentExpenses}
-              loading={loading}
-              onRefresh={refreshRecentData}
-              totalRevenue={dashboardData.totalRevenue}
-              allBookings={dashboardData.allBookings}
-              allExpenses={dashboardData.allExpenses}
-              monthlyRevenueData={dashboardData.monthlyRevenueData}
-              monthlyExpensesData={dashboardData.monthlyExpensesData}
-              dailyRevenueData={dashboardData.dailyRevenueData}
-              dailyExpensesData={dashboardData.dailyExpensesData}
-            />
+                         <DashboardCharts 
+               recentBookings={dashboardData.recentBookings}
+               recentExpenses={dashboardData.recentExpenses}
+               loading={loading}
+               onRefresh={refreshRecentData}
+               totalRevenue={dashboardData.totalRevenue}
+               allBookings={dashboardData.allBookings}
+               allExpenses={dashboardData.allExpenses}
+              transporters={transporters?.data || []}
+               monthlyRevenueData={dashboardData.monthlyRevenueData}
+               monthlyExpensesData={dashboardData.monthlyExpensesData}
+               dailyRevenueData={dashboardData.dailyRevenueData}
+               dailyExpensesData={dashboardData.dailyExpensesData}
+             />
           </div>
-
+          
           {/* Secondary Information Grid */}
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
             {/* Customer Overview - Business Insights */}
@@ -638,10 +617,10 @@ const DashboardHome = () => {
             {/* Quick Actions & Stats - Secondary Actions */}
             <div className="xl:col-span-1 space-y-6">
               <DashboardQuickActions />
-              <DashboardStats 
-                stats={dashboardData.stats}
-                loading={loading}
-              />
+            <DashboardStats 
+              stats={dashboardData.stats}
+              loading={loading}
+            />
             </div>
           </div>
         </div>

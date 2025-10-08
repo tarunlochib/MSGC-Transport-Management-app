@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import api from '../utils/api';
+import activityLogger from '../utils/activityLogger';
 
 const AuthContext = createContext();
 
@@ -52,6 +53,13 @@ export const AuthProvider = ({ children }) => {
       setToken(token);
       localStorage.setItem('token', token);
       
+      // Log login activity
+      activityLogger.logLoginActivity('User logged in', `User ${user.name} successfully logged in`, {
+        userId: user.id,
+        email: user.email,
+        role: user.role
+      });
+      
       return { success: true };
     } catch (error) {
       return { 
@@ -62,6 +70,15 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
+    // Log logout activity before clearing user data
+    if (user) {
+      activityLogger.logLoginActivity('User logged out', `User ${user.name} logged out`, {
+        userId: user.id,
+        email: user.email,
+        role: user.role
+      });
+    }
+    
     setUser(null);
     setToken(null);
     localStorage.removeItem('token');

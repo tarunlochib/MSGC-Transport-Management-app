@@ -68,7 +68,7 @@ router.post('/', async (req, res) => {
     
     const validExpenseTypes = [
       'fuel', 'toll', 'maintenance', 'insurance', 'mobile_internet', 
-      'household', 'emi', 'labour', 'salary', 'office_rent', 'utilities', 
+      'household', 'emi', 'labour', 'salary', 'office_rent', 'vehicle_rent', 'utilities', 
       'marketing', 'legal', 'travel', 'stationery', 'repairs', 'taxes', 
       'bank_charges', 'gaadi_bhaada', 'misc'
     ];
@@ -127,7 +127,7 @@ router.put('/:id', async (req, res) => {
     
     const validExpenseTypes = [
       'fuel', 'toll', 'maintenance', 'insurance', 'mobile_internet', 
-      'household', 'emi', 'labour', 'salary', 'office_rent', 'utilities', 
+      'household', 'emi', 'labour', 'salary', 'office_rent', 'vehicle_rent', 'utilities', 
       'marketing', 'legal', 'travel', 'stationery', 'repairs', 'taxes', 
       'bank_charges', 'gaadi_bhaada', 'misc'
     ];

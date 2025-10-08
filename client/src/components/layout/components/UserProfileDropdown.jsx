@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const UserProfileDropdown = ({ user, onLogout }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -24,7 +26,7 @@ const UserProfileDropdown = ({ user, onLogout }) => {
         </svg>
       ),
       description: 'View and edit your profile',
-      action: () => console.log('Profile clicked')
+      action: () => navigate('/settings/user-profile')
     },
     {
       name: 'Settings',
@@ -35,7 +37,7 @@ const UserProfileDropdown = ({ user, onLogout }) => {
         </svg>
       ),
       description: 'Account and app settings',
-      action: () => console.log('Settings clicked')
+      action: () => navigate('/settings/user-settings')
     },
     {
       name: 'Activity',
@@ -45,7 +47,7 @@ const UserProfileDropdown = ({ user, onLogout }) => {
         </svg>
       ),
       description: 'View your recent activity',
-      action: () => console.log('Activity clicked')
+      action: () => navigate('/settings/user-activity')
     }
   ];
 

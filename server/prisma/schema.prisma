@@ -16,7 +16,33 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  activities UserActivity[]
+
   @@map("users")
+}
+
+model Company {
+  id              String   @id @default(cuid())
+  name            String
+  address         String
+  city            String?
+  state           String?
+  pincode         String?
+  phone           String?
+  email           String?
+  gstNumber       String?
+  panNumber       String?
+  website         String?
+  logo            String?
+  bankName        String?
+  bankAccount     String?
+  ifscCode        String?
+  termsAndConditions String?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("companies")
 }
 
 model Customer {
@@ -71,6 +97,7 @@ model Vehicle {
   capacity           Float?
   year               Int?
   fuelType           String       @default("Diesel")
+  insuranceNumber    String?
   insuranceExpiry    DateTime?
   permitExpiry       DateTime?
   fitnessExpiry      DateTime?
@@ -277,9 +304,25 @@ model Godown {
   status        String   @default("Active")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
-  
+
   transporter   Transporter @relation(fields: [transporterId], references: [id])
   bookings      Booking[]
 
   @@map("godowns")
+}
+
+model UserActivity {
+  id          String   @id @default(cuid())
+  userId      String
+  type        String   // booking, challan, customer, transporter, expense, settings, login
+  action      String   // Created booking, Generated challan, etc.
+  details     String   // Additional details about the activity
+  metadata    String?  // JSON string for additional data
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_activities")
 }

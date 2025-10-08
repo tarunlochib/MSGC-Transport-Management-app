@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
+import performanceOptimizer from '../../utils/performanceOptimization';
 
 // Import components
 import BookingHeader from './components/BookingHeader';
@@ -228,6 +229,11 @@ const EditBookingPage = () => {
       };
       
       await axios.put(`/api/bookings/${id}`, bookingData);
+      
+      // Invalidate dashboard cache to ensure fresh data
+      performanceOptimizer.clearCacheEntry('bookings');
+      performanceOptimizer.clearCacheEntry('challans');
+      
       navigate('/bookings');
     } catch (error) {
       console.error('Error updating booking:', error);

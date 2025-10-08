@@ -44,15 +44,17 @@ const GodownWeightTable = ({ transporters, bookings, challans, loading }) => {
   const calculateRemainingWeight = () => {
     if (!transporters || !bookings || !challans) return [];
 
-    // Filter bookings by selected month
+    // CORRECT LOGIC: Show current month data, but calculate remaining weight properly
     const [year, month] = selectedMonth.split('-').map(Number);
-    const filteredBookings = bookings.filter(booking => {
+    
+    // Filter bookings by selected month (for display)
+    const monthBookings = bookings.filter(booking => {
       const bookingDate = new Date(booking.bookingDate);
       return bookingDate.getFullYear() === year && bookingDate.getMonth() === month - 1;
     });
 
-    // Filter challans by selected month
-    const filteredChallans = challans.filter(challan => {
+    // Filter challans by selected month (for display)
+    const monthChallans = challans.filter(challan => {
       const challanDate = new Date(challan.dateGenerated);
       return challanDate.getFullYear() === year && challanDate.getMonth() === month - 1;
     });
@@ -60,23 +62,48 @@ const GodownWeightTable = ({ transporters, bookings, challans, loading }) => {
     const results = [];
 
     transporters.forEach(transporter => {
-      // Get all bookings for this transporter
-      const transporterBookings = filteredBookings.filter(booking => booking.transporterId === transporter.id);
+      // Get current month bookings for this transporter
+      const transporterBookings = monthBookings.filter(booking => booking.transporterId === transporter.id);
       
-      // Calculate total weight from bookings
+      // Get current month challans for this transporter  
+      const transporterChallans = monthChallans.filter(challan => challan.transportCompanyId === transporter.id);
+      
+      // Calculate current month weights (for display)
       const totalBookingWeight = transporterBookings.reduce((sum, booking) => sum + (booking.weightKg || 0), 0);
-      
-      // Get all challans for this transporter (filtered by month)
-      const transporterChallans = filteredChallans.filter(challan => challan.transportCompanyId === transporter.id);
-      
-      // Calculate total weight from challans
       const totalChallanWeight = transporterChallans.reduce((sum, challan) => sum + (challan.totalWeight || 0), 0);
       
-      // Round to whole numbers to avoid decimal issues
-      const roundedTotalChallanWeight = Math.round(totalChallanWeight);
+      // DEBUG: Log current data
       
-      // Calculate remaining weight (bookings - challans)
-      const remainingWeight = Math.max(0, totalBookingWeight - roundedTotalChallanWeight);
+      // CORRECT APPROACH: Check which current month bookings are already dispatched
+      // Find bookings that are included in current month challans
+      const dispatchedBookings = transporterBookings.filter(booking => {
+        try {
+          return transporterChallans.some(challan => {
+            // Validation: Ensure challan has goods and they're properly structured
+            if (!challan.challanGoods || !Array.isArray(challan.challanGoods)) {
+              return false;
+            }
+            return challan.challanGoods.some(good => {
+              // Validation: Ensure good has bookingId
+              if (!good || typeof good.bookingId !== 'string') {
+                return false;
+              }
+              return good.bookingId === booking.id;
+            });
+          });
+        } catch (error) {
+          console.warn(`Error checking dispatched status for booking ${booking.id}:`, error);
+          return false;
+        }
+      });
+      
+      
+      // Calculate remaining weight: current month bookings - dispatched bookings
+      const remainingWeight = transporterBookings
+        .filter(booking => !dispatchedBookings.some(dispatched => dispatched.id === booking.id))
+        .reduce((sum, booking) => sum + (booking.weightKg || 0), 0);
+      
+      
       
       // Calculate percentage
       const percentage = totalBookingWeight > 0 ? ((remainingWeight / totalBookingWeight) * 100) : 0;
@@ -85,13 +112,25 @@ const GodownWeightTable = ({ transporters, bookings, challans, loading }) => {
       const isTargetTransporter = targetTransporter && transporter.id === targetTransporter.id;
       const transporterGodowns = isTargetTransporter && godowns ? godowns : [];
 
-      // Calculate consignments left in godown (bookings without challans)
+      // Calculate consignments left in godown (using same logic as remaining weight)
       const consignmentsInGodown = transporterBookings.filter(booking => {
-        // Check if this booking has any challan goods
-        const hasChallan = transporterChallans.some(challan => 
-          challan.challanGoods && challan.challanGoods.some(good => good.bookingId === booking.id)
-        );
-        return !hasChallan;
+        try {
+          const hasChallan = transporterChallans.some(challan => {
+            if (!challan.challanGoods || !Array.isArray(challan.challanGoods)) {
+              return false;
+            }
+            return challan.challanGoods.some(good => {
+              if (!good || typeof good.bookingId !== 'string') {
+                return false;
+              }
+              return good.bookingId === booking.id;
+            });
+          });
+          return !hasChallan;
+        } catch (error) {
+          console.warn(`Error checking consignment status for booking ${booking.id}:`, error);
+          return true; // Assume still in godown if error
+        }
       });
 
       // Add transporter row
@@ -100,8 +139,9 @@ const GodownWeightTable = ({ transporters, bookings, challans, loading }) => {
         name: transporter.name,
         type: 'transporter',
         transporterName: transporter.name,
+        // Current month data only
         totalBookingWeight,
-        totalChallanWeight: roundedTotalChallanWeight,
+        totalChallanWeight: totalChallanWeight,
         remainingWeight,
         percentage: Math.round(percentage),
         totalBookings: transporterBookings.length,
@@ -109,7 +149,7 @@ const GodownWeightTable = ({ transporters, bookings, challans, loading }) => {
         consignmentsInGodown: consignmentsInGodown.length,
         hasGodowns: transporterGodowns.length > 0,
         godowns: transporterGodowns.map(godown => {
-          // Get all bookings for this godown
+          // Get current month bookings for this godown
           const godownBookings = transporterBookings.filter(booking => booking.godownId === godown.id);
           
           // Calculate total weight from bookings for this godown
@@ -123,9 +163,9 @@ const GodownWeightTable = ({ transporters, bookings, challans, loading }) => {
           
           // Find challan goods that belong to bookings from this godown
           transporterChallans.forEach(challan => {
-            if (challan.challanGoods) {
+            if (challan.challanGoods && Array.isArray(challan.challanGoods)) {
               challan.challanGoods.forEach(challanGood => {
-                if (godownBookingIds.includes(challanGood.bookingId)) {
+                if (challanGood && typeof challanGood.bookingId === 'string' && godownBookingIds.includes(challanGood.bookingId)) {
                   godownChallanWeight += challanGood.weight || 0;
                 }
               });
@@ -134,17 +174,22 @@ const GodownWeightTable = ({ transporters, bookings, challans, loading }) => {
           
           // Calculate consignments left in this godown
           const godownConsignmentsInGodown = godownBookings.filter(booking => {
-            const hasChallan = transporterChallans.some(challan => 
-              challan.challanGoods && challan.challanGoods.some(good => good.bookingId === booking.id)
-            );
+            const hasChallan = transporterChallans.some(challan => {
+              if (!challan.challanGoods || !Array.isArray(challan.challanGoods)) {
+                return false;
+              }
+              return challan.challanGoods.some(good => {
+                if (!good || typeof good.bookingId !== 'string') {
+                  return false;
+                }
+                return good.bookingId === booking.id;
+              });
+            });
             return !hasChallan;
           });
           
-          // Round to whole numbers
-          const roundedGodownChallanWeight = Math.round(godownChallanWeight);
-          
-          // Calculate remaining weight for this godown
-          const godownRemainingWeight = Math.max(0, godownTotalBookingWeight - roundedGodownChallanWeight);
+          // Calculate remaining weight for this godown - no rounding to match stock calculations
+          const godownRemainingWeight = Math.max(0, godownTotalBookingWeight - godownChallanWeight);
           
           // Calculate percentage for this godown
           const godownPercentage = godownTotalBookingWeight > 0 ? ((godownRemainingWeight / godownTotalBookingWeight) * 100) : 0;
@@ -153,7 +198,7 @@ const GodownWeightTable = ({ transporters, bookings, challans, loading }) => {
             id: godown.id,
             name: godown.name,
             totalBookingWeight: godownTotalBookingWeight,
-            totalChallanWeight: roundedGodownChallanWeight,
+            totalChallanWeight: godownChallanWeight,
             remainingWeight: godownRemainingWeight,
             percentage: Math.round(godownPercentage),
             totalBookings: godownBookings.length,
@@ -213,9 +258,9 @@ const GodownWeightTable = ({ transporters, bookings, challans, loading }) => {
               <h3 className="text-xl font-bold text-white">
                 Weight Status by Transporter
               </h3>
-              <p className="text-blue-100 text-sm">
-                All transporters with godown details • Total remaining: <span className="font-semibold text-white">{totalRemainingWeight.toLocaleString()} kg</span>
-              </p>
+                <p className="text-blue-100 text-sm">
+                  Total remaining: <span className="font-semibold text-white">{totalRemainingWeight.toLocaleString()} kg</span>
+                </p>
             </div>
           </div>
           
@@ -335,7 +380,7 @@ const GodownWeightTable = ({ transporters, bookings, challans, loading }) => {
                           <div className="text-sm font-semibold text-blue-600">
                             {transporter.totalBookingWeight.toLocaleString()} kg
                           </div>
-                          <div className="text-xs text-gray-500">Material received</div>
+                            <div className="text-xs text-gray-500">Material received</div>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -343,7 +388,7 @@ const GodownWeightTable = ({ transporters, bookings, challans, loading }) => {
                           <div className="text-sm font-semibold text-green-600">
                             {transporter.totalChallanWeight.toLocaleString()} kg
                           </div>
-                          <div className="text-xs text-gray-500">Material dispatched</div>
+                            <div className="text-xs text-gray-500">Material dispatched</div>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">

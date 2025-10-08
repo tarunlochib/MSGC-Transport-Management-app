@@ -1,4 +1,5 @@
 import React from 'react';
+import AutocompleteInput from '../../../common/AutocompleteInput';
 
 const ConsignorDetailsStep = ({ formData, setFormData, customers, handleGSTChange }) => {
   return (
@@ -14,34 +15,50 @@ const ConsignorDetailsStep = ({ formData, setFormData, customers, handleGSTChang
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-semibold text-gray-700 mb-1 uppercase tracking-wide">
-            Consignor Name *
-          </label>
-          <input
-            type="text"
+          <AutocompleteInput
+            label="Consignor Name"
             value={formData.consignorName}
-            onChange={(e) => setFormData({ ...formData, consignorName: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm"
+            onChange={(value) => setFormData({ ...formData, consignorName: value })}
+            onSelect={(customer) => {
+              setFormData(prev => ({
+                ...prev,
+                consignorName: customer.name,
+                consignorAddress: customer.address,
+                consignorGST: customer.gstNumber,
+                consignorId: customer.id
+              }));
+            }}
+            suggestions={customers || []}
+            placeholder="Type to search customers..."
             required
-            placeholder="Enter consignor name"
+            showGST
+            showAddress
           />
         </div>
         
         <div>
-          <label className="block text-xs font-semibold text-gray-700 mb-1 uppercase tracking-wide">
-            Consignor GST Number
-          </label>
-          <input
-            type="text"
+          <AutocompleteInput
+            label="Consignor GST Number"
             value={formData.consignorGST}
-            onChange={(e) => {
-              setFormData({ ...formData, consignorGST: e.target.value });
-              if (e.target.value.length >= 15) {
-                handleGSTChange('consignor', e.target.value);
+            onChange={(value) => {
+              setFormData({ ...formData, consignorGST: value });
+              if (value.length >= 15) {
+                handleGSTChange('consignor', value);
               }
             }}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm"
-            placeholder="Enter GST number"
+            onSelect={(customer) => {
+              setFormData(prev => ({
+                ...prev,
+                consignorName: customer.name,
+                consignorAddress: customer.address,
+                consignorGST: customer.gstNumber,
+                consignorId: customer.id
+              }));
+            }}
+            suggestions={customers || []}
+            placeholder="Type GST number to search..."
+            showGST
+            showAddress
           />
         </div>
       </div>

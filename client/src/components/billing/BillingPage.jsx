@@ -11,15 +11,22 @@ const BillingPage = () => {
   const [activeTab, setActiveTab] = useState('calculator');
   const [billingStats, setBillingStats] = useState({
     totalCommission: 0,
-    pendingBills: 0,
+    totalBookings: 0,
     totalWeight: 0,
-    averageCommission: 0
+    averageCommission: 0,
+    prevTotalCommission: 0,
+    prevTotalBookings: 0,
+    prevTotalWeight: 0,
+    prevAverageCommission: 0
   });
+  const now = new Date();
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth()); // 0-11
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchBillingStats();
-  }, []);
+  }, [selectedMonth, selectedYear]);
 
   const fetchBillingStats = async () => {
     try {
@@ -30,13 +37,19 @@ const BillingPage = () => {
         axios.get('/api/bookings')
       ]);
 
-      // Calculate billing statistics
+      // Filter bookings for selected month/year
+      const monthFilteredBookings = bookings.data.filter(b => {
+        const d = new Date(b.bookingDate || b.createdAt);
+        return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
+      });
+
+      // Calculate billing statistics for selected period
       let totalCommission = 0;
       let totalWeight = 0;
       let totalBookings = 0;
 
       transporters.data.forEach(transporter => {
-        const transporterBookings = bookings.data.filter(
+        const transporterBookings = monthFilteredBookings.filter(
           booking => booking.transporterId === transporter.id
         );
 
@@ -53,11 +66,44 @@ const BillingPage = () => {
 
       const averageCommission = totalBookings > 0 ? totalCommission / totalBookings : 0;
 
+      // Previous period (previous month)
+      const prevMonth = selectedMonth === 0 ? 11 : selectedMonth - 1;
+      const prevYear = selectedMonth === 0 ? selectedYear - 1 : selectedYear;
+      const prevMonthBookings = bookings.data.filter(b => {
+        const d = new Date(b.bookingDate || b.createdAt);
+        return d.getMonth() === prevMonth && d.getFullYear() === prevYear;
+      });
+
+      let prevTotalCommission = 0;
+      let prevTotalWeight = 0;
+      let prevTotalBookings = 0;
+
+      transporters.data.forEach(transporter => {
+        const transporterPrevBookings = prevMonthBookings.filter(
+          booking => booking.transporterId === transporter.id
+        );
+
+        const weightPrev = transporterPrevBookings.reduce(
+          (sum, booking) => sum + (booking.weightKg || 0), 0
+        );
+        const commissionPrev = weightPrev * (transporter.commissionRate || 0);
+
+        prevTotalCommission += commissionPrev;
+        prevTotalWeight += weightPrev;
+        prevTotalBookings += transporterPrevBookings.length;
+      });
+
+      const prevAverageCommission = prevTotalBookings > 0 ? prevTotalCommission / prevTotalBookings : 0;
+
       setBillingStats({
         totalCommission,
-        pendingBills: bookings.data.filter(b => b.paymentMethod !== 'Paid').length,
+        totalBookings,
         totalWeight,
-        averageCommission
+        averageCommission,
+        prevTotalCommission,
+        prevTotalBookings,
+        prevTotalWeight,
+        prevAverageCommission
       });
     } catch (error) {
       console.error('Error fetching billing stats:', error);
@@ -96,6 +142,63 @@ const BillingPage = () => {
             <BillingHeader />
           </div>
           
+          {/* Period Controls */}
+          <div className="mb-4 flex items-center justify-between">
+            <div className="text-sm text-gray-600 font-medium">Billing Summary</div>
+            <div className="flex items-center space-x-3">
+              {/* Month Selector */}
+              <div className="relative">
+                <div className="absolute inset-y-0 left-2 flex items-center pointer-events-none text-gray-400">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                  className="appearance-none pl-8 pr-8 py-2 text-sm bg-white border border-gray-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-colors"
+                >
+                  {Array.from({ length: 12 }).map((_, idx) => (
+                    <option key={idx} value={idx}>
+                      {new Date(2000, idx, 1).toLocaleString('en-US', { month: 'short' })}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute inset-y-0 right-2 flex items-center pointer-events-none text-gray-400">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </div>
+
+              {/* Year Selector */}
+              <div className="relative">
+                <div className="absolute inset-y-0 left-2 flex items-center pointer-events-none text-gray-400">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h18M3 12h18M3 17h18" />
+                  </svg>
+                </div>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                  className="appearance-none pl-8 pr-8 py-2 text-sm bg-white border border-gray-200 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-colors"
+                >
+                  {Array.from({ length: 5 }).map((_, i) => {
+                    const y = now.getFullYear() - i;
+                    return (
+                      <option key={y} value={y}>{y}</option>
+                    );
+                  })}
+                </select>
+                <div className="absolute inset-y-0 right-2 flex items-center pointer-events-none text-gray-400">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Stats */}
           <div className="mb-6">
             <BillingStats stats={billingStats} loading={loading} />

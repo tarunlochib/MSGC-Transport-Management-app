@@ -157,17 +157,15 @@ const ExpensesPage = () => {
     });
 
     filtered.sort((a, b) => {
+      // Primary: latest first by actual expense date (fallback to createdAt)
+      const aTime = new Date(a.date || a.createdAt || 0).getTime();
+      const bTime = new Date(b.date || b.createdAt || 0).getTime();
+      if (aTime !== bTime) return bTime - aTime;
+      // Secondary: existing sort choice
       let aVal = a[sortBy];
       let bVal = b[sortBy];
-      
-      if (sortBy === 'date') {
-        aVal = new Date(aVal);
-        bVal = new Date(bVal);
-      } else if (sortBy === 'amount') {
-        aVal = parseFloat(aVal);
-        bVal = parseFloat(bVal);
-      }
-      
+      if (sortBy === 'date') { aVal = new Date(aVal); bVal = new Date(bVal); }
+      else if (sortBy === 'amount') { aVal = parseFloat(aVal); bVal = parseFloat(bVal); }
       if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
       if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
       return 0;

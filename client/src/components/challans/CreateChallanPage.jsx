@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import performanceOptimizer from '../../utils/performanceOptimization';
 import { 
   ChallanCard, 
   FormField, 
@@ -190,6 +191,10 @@ const CreateChallanPage = () => {
         throw new Error(errorData.error || 'Failed to create challan');
       }
 
+      // Invalidate dashboard cache to ensure fresh data
+      performanceOptimizer.clearCacheEntry('bookings');
+      performanceOptimizer.clearCacheEntry('challans');
+      
       setSuccess('Challan created successfully!');
       setTimeout(() => {
         navigate('/challans');
@@ -264,9 +269,7 @@ const CreateChallanPage = () => {
               animation: isVisible ? 'slideInUp 0.6s ease-out forwards' : 'none'
             }}
           >
-            <Alert variant="error">
-              {error}
-            </Alert>
+            <Alert type="error" message={error} onClose={() => setError(null)} />
           </div>
         )}
 
@@ -278,9 +281,7 @@ const CreateChallanPage = () => {
               animation: isVisible ? 'slideInUp 0.6s ease-out forwards' : 'none'
             }}
           >
-            <Alert variant="success">
-              {success}
-            </Alert>
+            <Alert type="success" message={success} onClose={() => setSuccess(null)} />
           </div>
         )}
 
@@ -691,7 +692,7 @@ const CreateChallanPage = () => {
         </form>
       </div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes slideInDown {
           from {
             opacity: 0;

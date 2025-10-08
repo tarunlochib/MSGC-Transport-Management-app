@@ -29,6 +29,102 @@ const generateChallanNumber = async () => {
 // Get all challans
 router.get('/', async (req, res) => {
   try {
+    const { grouped = 'false' } = req.query;
+    const isGrouped = grouped === 'true';
+
+    if (isGrouped) {
+      // Return grouped challans
+      const challans = await prisma.challan.findMany({
+        include: {
+          transportCompany: {
+            select: { name: true }
+          },
+          truck: {
+            select: { vehicleNumber: true }
+          },
+          driver: {
+            select: { name: true }
+          },
+          challanGoods: {
+            include: {
+              booking: {
+                select: {
+                  id: true,
+                  grNumber: true,
+                  godownId: true
+                }
+              }
+            }
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      });
+
+      // Group challans by date, vehicle, and destination
+      const groupedChallans = {};
+      
+      challans.forEach(challan => {
+        const normalizedStatus = challan.status === 'Completed' ? 'Delivered' : (challan.status || 'Generated');
+        const dateKey = challan.createdAt.toISOString().split('T')[0]; // YYYY-MM-DD
+        const vehicleNumber = challan.truck?.vehicleNumber || 'Unknown';
+        const destination = challan.toLocation || 'Unknown';
+        
+        const groupKey = `${dateKey}_${vehicleNumber}_${destination}`;
+        
+        if (!groupedChallans[groupKey]) {
+          groupedChallans[groupKey] = {
+            groupKey,
+            date: dateKey,
+            vehicleNumber,
+            destination,
+            challans: [],
+            totalWeight: 0,
+            totalItems: 0,
+            transporters: new Set(),
+            statuses: new Set(),
+            challanNumbers: [],
+            createdAt: challan.createdAt,
+            updatedAt: challan.updatedAt
+          };
+        }
+        
+        // Add challan to group
+        groupedChallans[groupKey].challans.push({ ...challan, status: normalizedStatus });
+        
+        // Calculate totals
+        groupedChallans[groupKey].totalWeight += challan.totalWeight || 0;
+        groupedChallans[groupKey].totalItems += challan.totalPackages || 0;
+        groupedChallans[groupKey].transporters.add(challan.transportCompany?.name || 'Unknown');
+        groupedChallans[groupKey].statuses.add(normalizedStatus);
+        groupedChallans[groupKey].challanNumbers.push(challan.challanNumber);
+        
+        // Update timestamps (use latest)
+        if (challan.createdAt > groupedChallans[groupKey].createdAt) {
+          groupedChallans[groupKey].createdAt = challan.createdAt;
+        }
+        if (challan.updatedAt > groupedChallans[groupKey].updatedAt) {
+          groupedChallans[groupKey].updatedAt = challan.updatedAt;
+        }
+      });
+      
+      // Convert to array and sort by date (newest first)
+      const groupedArray = Object.values(groupedChallans).map(group => ({
+        ...group,
+        transporters: Array.from(group.transporters),
+        statuses: Array.from(group.statuses),
+        transporterCount: group.transporters.size,
+        hasMixedStatus: group.statuses.size > 1,
+        overallStatus: group.statuses.has('Delivered') ? 'Delivered' : 
+                      group.statuses.has('In Transit') ? 'In Transit' : 
+                      'Generated'
+      })).sort((a, b) => new Date(b.date) - new Date(a.date));
+      
+      return res.json(groupedArray);
+    }
+
+    // Original individual challans endpoint
     const challans = await prisma.challan.findMany({
       include: {
         transportCompany: {
@@ -57,7 +153,13 @@ router.get('/', async (req, res) => {
       }
     });
 
-    res.json(challans);
+    // Normalize status field for all results
+    const normalized = challans.map(c => ({
+      ...c,
+      status: c.status === 'Completed' ? 'Delivered' : (c.status || 'Generated')
+    }));
+
+    res.json(normalized);
   } catch (error) {
     console.error('Error fetching challans:', error);
     res.status(500).json({ error: 'Failed to fetch challans' });
@@ -181,7 +283,9 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Challan not found' });
     }
 
-    res.json(challan);
+    // Normalize status: treat Completed as Delivered
+    const normalized = { ...challan, status: challan.status === 'Completed' ? 'Delivered' : (challan.status || 'Generated') };
+    res.json(normalized);
   } catch (error) {
     console.error('Error fetching challan:', error);
     res.status(500).json({ error: 'Failed to fetch challan' });
@@ -313,7 +417,7 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { challanNumber, transportCompanyId, truckId, driverId, fromLocation, toLocation, notes } = req.body;
+    const { challanNumber, transportCompanyId, truckId, driverId, fromLocation, toLocation, notes, challanDate, status } = req.body;
 
     // Validate required fields
     if (!transportCompanyId || !truckId || !driverId) {
@@ -354,7 +458,9 @@ router.put('/:id', async (req, res) => {
         driverId,
         fromLocation: fromLocation || 'Not specified',
         toLocation: toLocation || 'Not specified',
-        notes: notes || null
+        notes: notes || null,
+        ...(challanDate && { createdAt: new Date(challanDate) }),
+        ...(status && { status })
       },
       include: {
         transportCompany: {

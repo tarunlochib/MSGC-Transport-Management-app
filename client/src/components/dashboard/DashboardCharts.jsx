@@ -10,6 +10,7 @@ import {
   Title,
   Tooltip,
   Legend,
+  Filler,
 } from 'chart.js';
 import { Bar, Line } from 'react-chartjs-2';
 
@@ -21,22 +22,13 @@ ChartJS.register(
   PointElement,
   Title,
   Tooltip,
-  Legend
+  Legend,
+  Filler
 );
 
-const DashboardCharts = ({ recentBookings, recentExpenses, loading, onRefresh, totalRevenue, allBookings, allExpenses, monthlyRevenueData, monthlyExpensesData, dailyRevenueData, dailyExpensesData }) => {
+const DashboardCharts = ({ recentBookings, recentExpenses, loading, onRefresh, totalRevenue, allBookings, allExpenses, transporters, monthlyRevenueData, monthlyExpensesData, dailyRevenueData, dailyExpensesData }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   
-  // Debug logging to see what data we're receiving
-  console.log('DashboardCharts received:', {
-    allBookings: allBookings?.length || 0,
-    recentBookings: recentBookings?.length || 0,
-    allExpenses: allExpenses?.length || 0,
-    recentExpenses: recentExpenses?.length || 0,
-    totalRevenue,
-    totalRevenueType: typeof totalRevenue,
-    totalRevenueValue: totalRevenue
-  });
   const [selectedPeriod, setSelectedPeriod] = useState('12months');
   const [viewMode, setViewMode] = useState('monthly'); // 'monthly' or 'daily'
   const [selectedMonth, setSelectedMonth] = useState('');
@@ -97,15 +89,9 @@ const DashboardCharts = ({ recentBookings, recentExpenses, loading, onRefresh, t
         revenue: monthlyRevenueData[month] || 0
       }));
 
-      const maxRevenue = Math.max(...monthlyData.map(data => data.revenue), 1000);
+       const maxRevenue = Math.max(...monthlyData.map(data => data.revenue), 1000);
 
-      console.log('Using parent monthly revenue data:', {
-        monthlyRevenueData,
-        monthlyData,
-        totalRevenue
-      });
-
-      return { monthlyData, totalRevenue: totalRevenue || 0, maxRevenue };
+       return { monthlyData, totalRevenue: totalRevenue || 0, maxRevenue };
     }
 
     // Fallback: Calculate from allBookings if parent data not available
@@ -114,7 +100,8 @@ const DashboardCharts = ({ recentBookings, recentExpenses, loading, onRefresh, t
 
     if (allBookings && allBookings.length > 0) {
       allBookings.forEach(booking => {
-        const bookingDate = new Date(booking.createdAt);
+        // Use bookingDate (business date) instead of createdAt (system date)
+        const bookingDate = new Date(booking.bookingDate);
         const monthKey = bookingDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
         
         if (monthlyRevenue.hasOwnProperty(monthKey)) {
@@ -133,17 +120,10 @@ const DashboardCharts = ({ recentBookings, recentExpenses, loading, onRefresh, t
       revenue: monthlyRevenue[month] || 0
     }));
 
-    const calculatedTotalRevenue = totalRevenue || monthlyData.reduce((sum, data) => sum + data.revenue, 0);
-    const maxRevenue = Math.max(...monthlyData.map(data => data.revenue), 1000);
+     const calculatedTotalRevenue = totalRevenue || monthlyData.reduce((sum, data) => sum + data.revenue, 0);
+     const maxRevenue = Math.max(...monthlyData.map(data => data.revenue), 1000);
 
-    console.log('Fallback revenue calculation:', {
-      totalRevenueFromParent: totalRevenue,
-      calculatedFromMonthly: monthlyData.reduce((sum, data) => sum + data.revenue, 0),
-      finalTotalRevenue: calculatedTotalRevenue,
-      monthlyData: monthlyData
-    });
-
-    return { monthlyData, totalRevenue: calculatedTotalRevenue, maxRevenue };
+     return { monthlyData, totalRevenue: calculatedTotalRevenue, maxRevenue };
   }, [monthlyRevenueData, allBookings, totalRevenue]);
 
   // Use monthly expenses data from parent
@@ -165,16 +145,10 @@ const DashboardCharts = ({ recentBookings, recentExpenses, loading, onRefresh, t
         expenses: monthlyExpensesData[month] || 0
       }));
 
-      const totalExpenses = monthlyData.reduce((sum, data) => sum + data.expenses, 0);
-      const maxExpenses = Math.max(...monthlyData.map(data => data.expenses), 1000);
+       const totalExpenses = monthlyData.reduce((sum, data) => sum + data.expenses, 0);
+       const maxExpenses = Math.max(...monthlyData.map(data => data.expenses), 1000);
 
-      console.log('Using parent monthly expenses data:', {
-        monthlyExpensesData,
-        monthlyData,
-        totalExpenses
-      });
-
-      return { monthlyData, totalExpenses, maxExpenses };
+       return { monthlyData, totalExpenses, maxExpenses };
     }
 
     // Fallback: Calculate from allExpenses if parent data not available
@@ -257,17 +231,9 @@ const DashboardCharts = ({ recentBookings, recentExpenses, loading, onRefresh, t
           day: revenueItem.day,
           profit: profit
         };
-      });
+       });
 
-      console.log('Using parent daily data:', {
-        dailyRevenueData,
-        dailyExpensesData,
-        revenueData,
-        expensesData,
-        profitData
-      });
-
-      return { revenueData, expensesData, profitData };
+       return { revenueData, expensesData, profitData };
     }
 
     // Fallback: Calculate from allBookings if parent data not available
@@ -280,16 +246,19 @@ const DashboardCharts = ({ recentBookings, recentExpenses, loading, onRefresh, t
       dailyExpenses[day] = 0;
     }
 
-    // Calculate daily revenue from bookings
+    // Calculate daily revenue from bookings (commission + local cartage)
     if (allBookings && allBookings.length > 0) {
       allBookings.forEach(booking => {
-        const bookingDate = new Date(booking.createdAt);
+        // Use bookingDate (business date) instead of createdAt (system date)
+        const bookingDate = new Date(booking.bookingDate);
         if (bookingDate.getMonth() === monthIndex && bookingDate.getFullYear() === yearNum) {
           const day = bookingDate.getDate();
-          // TODO: We need transporter data to calculate commission + local cartage
-          // For now, using totalCharges as placeholder - this should be updated
-          const totalCharges = booking.totalCharges || 0;
-          dailyRevenue[day] += totalCharges;
+          // Calculate actual revenue: commission + local cartage
+          const transporter = transporters?.find(t => t.id === booking.transporterId);
+          const commissionAmount = (booking.weightKg || 0) * (transporter?.commissionRate || 0);
+          const localCartage = booking.localCartageCharges || 0;
+          const dailyRevenueAmount = commissionAmount + localCartage;
+          dailyRevenue[day] += dailyRevenueAmount;
         }
       });
     }
@@ -297,7 +266,7 @@ const DashboardCharts = ({ recentBookings, recentExpenses, loading, onRefresh, t
     // Calculate daily expenses
     if (allExpenses && allExpenses.length > 0) {
       allExpenses.forEach(expense => {
-        const expenseDate = new Date(expense.createdAt);
+        const expenseDate = new Date(expense.date); // Use expense.date instead of createdAt
         if (expenseDate.getMonth() === monthIndex && expenseDate.getFullYear() === yearNum) {
           const day = expenseDate.getDate();
           const amount = expense.amount || 0;
@@ -343,7 +312,7 @@ const DashboardCharts = ({ recentBookings, recentExpenses, loading, onRefresh, t
     });
 
     return { revenueData, expensesData, profitData };
-  }, [viewMode, selectedMonth, dailyRevenueData, dailyExpensesData, allBookings, allExpenses, recentBookings, recentExpenses]);
+  }, [viewMode, selectedMonth, dailyRevenueData, dailyExpensesData, allBookings, allExpenses, transporters, recentBookings, recentExpenses]);
 
   // Get current period data based on selection
   const getCurrentPeriodData = () => {
@@ -363,21 +332,9 @@ const DashboardCharts = ({ recentBookings, recentExpenses, loading, onRefresh, t
     }
   };
 
-  const currentData = getCurrentPeriodData();
-  
-  // Debug: Log what data will be used in charts
-  console.log('Chart data:', {
-    viewMode,
-    selectedPeriod,
-    currentDataLength: currentData.length,
-    currentData: currentData.map(data => ({
-      month: data.month || data.day,
-      revenue: data.revenue
-    })),
-    totalRevenueFromParent: totalRevenue
-  });
-
-  // Calculate current period totals
+   const currentData = getCurrentPeriodData();
+   
+   // Calculate current period totals
   const currentPeriodTotals = useMemo(() => {
     if (viewMode === 'daily') {
       // For daily view, calculate totals for the selected month
@@ -386,25 +343,19 @@ const DashboardCharts = ({ recentBookings, recentExpenses, loading, onRefresh, t
       const totalProfit = dailyRevenue - totalExpenses;
       return { totalRevenue: dailyRevenue, totalExpenses, totalProfit };
     } else {
-      // For monthly view, use the totalRevenue from parent (all bookings) for the main display
-      // and calculate profit correctly
-      const totalExpenses = currentData.map((data, index) => expensesData.monthlyData[index]?.expenses || 0).reduce((sum, expense) => sum + expense, 0);
-      const totalProfit = (totalRevenue || 0) - totalExpenses;
-      
-      console.log('Monthly totals calculation:', {
-        totalRevenueFromParent: totalRevenue,
+      // For monthly view, compute totals for the selected period only
+      const expenseByMonth = new Map(expensesData.monthlyData.map(m => [m.month, m.expenses || 0]));
+      const periodRevenue = currentData.reduce((sum, m) => sum + (m.revenue || 0), 0);
+      const totalExpenses = currentData.reduce((sum, m) => sum + (expenseByMonth.get(m.month) || 0), 0);
+      const totalProfit = periodRevenue - totalExpenses;
+
+      return {
+        totalRevenue: periodRevenue,
         totalExpenses,
-        totalProfit,
-        currentDataLength: currentData.length
-      });
-      
-      return { 
-        totalRevenue: totalRevenue || 0, // Use parent totalRevenue (commission + local cartage)
-        totalExpenses, 
-        totalProfit 
+        totalProfit
       };
     }
-  }, [viewMode, currentData, dailyData, expensesData.monthlyData, totalRevenue]);
+  }, [viewMode, currentData, dailyData, expensesData.monthlyData]);
 
   // Chart.js configuration
   const chartData = {
@@ -434,9 +385,12 @@ const DashboardCharts = ({ recentBookings, recentExpenses, loading, onRefresh, t
       },
       {
         label: 'Expenses',
-        data: viewMode === 'daily'
+        data: viewMode === 'daily' 
           ? currentData.map((data, index) => dailyData.expensesData[index]?.expenses || 0)
-          : currentData.map((data, index) => expensesData.monthlyData[index]?.expenses || 0),
+          : currentData.map((data) => {
+              const match = expensesData.monthlyData.find(m => m.month === data.month);
+              return match?.expenses || 0;
+            }),
         backgroundColor: viewMode === 'daily' 
           ? 'rgba(239, 68, 68, 0.1)'
           : 'rgba(239, 68, 68, 0.8)',
@@ -456,7 +410,11 @@ const DashboardCharts = ({ recentBookings, recentExpenses, loading, onRefresh, t
         label: 'Profit',
         data: viewMode === 'daily'
           ? currentData.map((data, index) => dailyData.profitData[index]?.profit || 0)
-          : currentData.map((data, index) => profitData[index]?.profit || 0),
+          : currentData.map((data) => {
+              const expenseMatch = expensesData.monthlyData.find(m => m.month === data.month);
+              const expenseVal = expenseMatch?.expenses || 0;
+              return (data.revenue || 0) - expenseVal;
+            }),
         backgroundColor: viewMode === 'daily' 
           ? 'rgba(34, 197, 94, 0.1)'
           : 'rgba(34, 197, 94, 0.8)',

@@ -12,7 +12,8 @@ const FormField = ({
   required = false,
   className = "",
   helpText,
-  children
+  children,
+  options = []
 }) => {
   return (
     <div className={`space-y-2 ${className}`}>
@@ -20,22 +21,46 @@ const FormField = ({
         {label} {required && <span className="text-red-500">*</span>}
       </label>
       {children || (
-        <input
-          type={type}
-          id={name}
-          name={name}
-          value={value}
-          onChange={onChange}
-          disabled={disabled}
-          placeholder={placeholder}
-          className={`
-            w-full px-3 py-2.5 border rounded-lg text-gray-900 placeholder-gray-500
-            transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20
-            focus:border-blue-500 bg-white hover:bg-gray-50 hover:scale-[1.01]
-            ${error ? 'border-red-300 focus:ring-red-500/20 focus:border-red-500' : 'border-gray-200 hover:border-gray-300'}
-            ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
-          `}
-        />
+        type === 'select' ? (
+          <select
+            id={name}
+            name={name}
+            value={value}
+            onChange={onChange}
+            disabled={disabled}
+            className={`
+              w-full px-3 py-2.5 border rounded-lg text-gray-900
+              transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20
+              focus:border-blue-500 bg-white hover:bg-gray-50 hover:scale-[1.01]
+              ${error ? 'border-red-300 focus:ring-red-500/20 focus:border-red-500' : 'border-gray-200 hover:border-gray-300'}
+              ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
+            `}
+          >
+            <option value="">{placeholder || 'Select an option'}</option>
+            {options.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            type={type}
+            id={name}
+            name={name}
+            value={value}
+            onChange={onChange}
+            disabled={disabled}
+            placeholder={placeholder}
+            className={`
+              w-full px-3 py-2.5 border rounded-lg text-gray-900 placeholder-gray-500
+              transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20
+              focus:border-blue-500 bg-white hover:bg-gray-50 hover:scale-[1.01]
+              ${error ? 'border-red-300 focus:ring-red-500/20 focus:border-red-500' : 'border-gray-200 hover:border-gray-300'}
+              ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
+            `}
+          />
+        )
       )}
       {helpText && !error && (
         <p className="text-sm text-gray-500">

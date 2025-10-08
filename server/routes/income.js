@@ -3,7 +3,8 @@ const { PrismaClient } = require('@prisma/client');
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// Get all income with optional filters
+// Get income with optional filters. If no page/limit are provided, returns ALL records (no pagination),
+// to match behavior of other resources used by the dashboard.
 router.get('/', async (req, res) => {
   try {
     const { 
@@ -13,12 +14,15 @@ router.get('/', async (req, res) => {
       startDate, 
       endDate,
       transporterId,
-      page = 1,
-      limit = 10,
+      page,
+      limit,
       search
     } = req.query;
-
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    const shouldPaginate = page !== undefined || limit !== undefined; // only paginate if explicitly requested
+    const pageNum = shouldPaginate ? parseInt(page || 1) : 1;
+    const pageLimit = shouldPaginate ? parseInt(limit || 10) : undefined;
+    const skip = shouldPaginate ? (pageNum - 1) * pageLimit : undefined;
     
     // Build where clause
     const where = {};
@@ -42,26 +46,42 @@ router.get('/', async (req, res) => {
       ];
     }
 
-    const [income, total] = await Promise.all([
-      prisma.income.findMany({
-        where,
-        include: {
-          transporter: true
-        },
-        orderBy: { date: 'desc' },
-        skip,
-        take: parseInt(limit)
-      }),
-      prisma.income.count({ where })
-    ]);
+    let income;
+    let total;
+    if (shouldPaginate) {
+      [income, total] = await Promise.all([
+        prisma.income.findMany({
+          where,
+          include: { transporter: true },
+          orderBy: { date: 'desc' },
+          skip,
+          take: pageLimit
+        }),
+        prisma.income.count({ where })
+      ]);
+    } else {
+      [income, total] = await Promise.all([
+        prisma.income.findMany({
+          where,
+          include: { transporter: true },
+          orderBy: { date: 'desc' }
+        }),
+        prisma.income.count({ where })
+      ]);
+    }
 
     res.json({
       data: income,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+      pagination: shouldPaginate ? {
+        page: pageNum,
+        limit: pageLimit,
         total,
-        pages: Math.ceil(total / parseInt(limit))
+        pages: Math.ceil(total / pageLimit)
+      } : {
+        page: 1,
+        limit: income.length,
+        total,
+        pages: 1
       }
     });
   } catch (error) {

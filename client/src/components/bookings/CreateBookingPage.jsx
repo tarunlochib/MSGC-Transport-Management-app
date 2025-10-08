@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import performanceOptimizer from '../../utils/performanceOptimization';
 
 // Import components
 import BookingHeader from './components/BookingHeader';
@@ -193,6 +194,11 @@ const CreateBookingPage = () => {
       };
       
       await axios.post('/api/bookings', bookingData);
+      
+      // Invalidate dashboard cache to ensure fresh data
+      performanceOptimizer.clearCacheEntry('bookings');
+      performanceOptimizer.clearCacheEntry('challans');
+      
       navigate('/bookings');
     } catch (error) {
       console.error('Error creating booking:', error);

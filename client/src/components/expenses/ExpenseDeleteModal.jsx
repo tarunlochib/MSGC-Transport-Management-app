@@ -29,7 +29,8 @@ const ExpenseDeleteModal = ({ expense, onConfirm, onClose }) => {
     const labels = {
       fuel: 'Fuel',
       toll: 'Toll & Permits',
-      maintenance: 'Maintenance',
+      maintenance: 'Vehicle Maintenance',
+      vehicle_rent: 'Vehicle Rent',
       misc: 'Miscellaneous'
     };
     return labels[type] || type;
@@ -40,7 +41,8 @@ const ExpenseDeleteModal = ({ expense, onConfirm, onClose }) => {
       fuel: 'bg-gradient-to-r from-yellow-400 to-orange-500 text-white',
       toll: 'bg-gradient-to-r from-red-400 to-pink-500 text-white',
       maintenance: 'bg-gradient-to-r from-purple-400 to-indigo-500 text-white',
-      misc: 'bg-gradient-to-r from-gray-400 to-gray-500 text-white'
+      vehicle_rent: 'bg-gradient-to-r from-sky-400 to-blue-500 text-white',
+      misc: 'bg-gradient-to-r from-slate-500 to-gray-600 text-white'
     };
     return colors[type] || 'bg-gradient-to-r from-gray-400 to-gray-500 text-white';
   };

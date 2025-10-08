@@ -267,6 +267,10 @@ const ViewVehiclePage = () => {
                   <p className="text-sm text-gray-900">{vehicle.fuelType}</p>
                 </div>
                 <div className="space-y-1">
+                  <label className="block text-xs font-semibold text-gray-700">Insurance Number</label>
+                  <p className="text-sm text-gray-900">{vehicle.insuranceNumber || 'Not specified'}</p>
+                </div>
+                <div className="space-y-1">
                   <label className="block text-xs font-semibold text-gray-700">Insurance Expiry</label>
                   <p className="text-sm text-gray-900">{vehicle.insuranceExpiry ? formatDate(vehicle.insuranceExpiry) : 'Not specified'}</p>
                 </div>
