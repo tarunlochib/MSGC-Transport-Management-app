@@ -27,6 +27,12 @@ const EditChallanPage = () => {
   const [transporters, setTransporters] = useState([]);
   const [vehicles, setVehicles] = useState([]);
   const [drivers, setDrivers] = useState([]);
+  const [challanBookings, setChallanBookings] = useState([]);
+  const [availableBookings, setAvailableBookings] = useState([]);
+  const [selectedBookings, setSelectedBookings] = useState([]);
+  const [showBookingManager, setShowBookingManager] = useState(false);
+  const [filterData, setFilterData] = useState({ fromLocation: '', toLocation: '' });
+  const [filteredBookings, setFilteredBookings] = useState([]);
 
   useEffect(() => {
     setIsVisible(true);
@@ -45,10 +51,13 @@ const EditChallanPage = () => {
 
   const fetchInitialData = async () => {
     try {
-      const [transportersRes] = await Promise.all([
+      const [transportersRes, availableBookingsRes] = await Promise.all([
         axios.get('/api/transporters'),
+        axios.get('/api/challans/available-bookings')
       ]);
       setTransporters(transportersRes.data);
+      setAvailableBookings(availableBookingsRes.data);
+      setFilteredBookings(availableBookingsRes.data);
     } catch (err) {
       console.error('Error fetching initial data:', err);
       setError('Failed to load initial data.');
@@ -73,6 +82,12 @@ const EditChallanPage = () => {
         challanDate: challan.createdAt ? new Date(challan.createdAt).toISOString().split('T')[0] : '',
         status: challan.status || 'Generated'
       });
+      
+      // Set challan bookings
+      if (challan.challanGoods) {
+        setChallanBookings(challan.challanGoods);
+      }
+      
       setLoading(false);
     } catch (err) {
       console.error('Error fetching challan details:', err);
@@ -99,6 +114,92 @@ const EditChallanPage = () => {
   const handleFormChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleFilterChange = (e) => {
+    const { name, value } = e.target;
+    setFilterData(prev => ({ ...prev, [name]: value }));
+    
+    // Filter bookings
+    let filtered = availableBookings;
+    if (value) {
+      filtered = availableBookings.filter(booking =>
+        booking[name]?.toLowerCase().includes(value.toLowerCase())
+      );
+    }
+    setFilteredBookings(filtered);
+  };
+
+  const toggleBookingSelection = (booking) => {
+    setSelectedBookings(prev => {
+      const isSelected = prev.some(b => b.id === booking.id);
+      if (isSelected) {
+        return prev.filter(b => b.id !== booking.id);
+      } else {
+        return [...prev, booking];
+      }
+    });
+  };
+
+  const removeSelectedBooking = (bookingId) => {
+    setSelectedBookings(prev => prev.filter(b => b.id !== bookingId));
+  };
+
+  const addBookingsToChallan = async () => {
+    if (selectedBookings.length === 0) {
+      setError('Please select at least one booking to add');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const response = await axios.post(`/api/challans/${id}/bookings`, {
+        bookingIds: selectedBookings.map(b => b.id)
+      });
+      
+      setSuccess(response.data.message);
+      
+      // Refresh challan details and available bookings
+      await Promise.all([
+        fetchChallanDetails(),
+        fetchInitialData()
+      ]);
+      
+      // Clear selection and close manager
+      setSelectedBookings([]);
+      setShowBookingManager(false);
+      
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to add bookings to challan');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const removeBookingFromChallan = async (bookingId) => {
+    if (!window.confirm('Are you sure you want to remove this booking from the challan?')) {
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      await axios.delete(`/api/challans/${id}/bookings/${bookingId}`);
+      
+      setSuccess('Booking removed successfully');
+      
+      // Refresh challan details and available bookings
+      await Promise.all([
+        fetchChallanDetails(),
+        fetchInitialData()
+      ]);
+      
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to remove booking from challan');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -384,6 +485,238 @@ const EditChallanPage = () => {
 
             {/* Right Column - Summary & Actions */}
             <div className="xl:col-span-1 space-y-6">
+              {/* Booking Management */}
+              <div 
+                className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
+                style={{
+                  animationDelay: '250ms',
+                  animation: isVisible ? 'slideInUp 0.6s ease-out forwards' : 'none'
+                }}
+              >
+                <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-white">Bookings</h3>
+                        <p className="text-purple-100 text-sm">{challanBookings.length} booking(s) in challan</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setShowBookingManager(!showBookingManager)}
+                      className="px-3 py-1 bg-white/20 text-white rounded-lg hover:bg-white/30 transition-colors text-sm"
+                    >
+                      {showBookingManager ? 'Close' : 'Manage'}
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="p-6">
+                  {challanBookings.length === 0 ? (
+                    <div className="text-center py-4">
+                      <p className="text-gray-500 text-sm">No bookings in this challan</p>
+                      <button
+                        onClick={() => setShowBookingManager(true)}
+                        className="mt-2 text-purple-600 hover:text-purple-700 text-sm font-medium"
+                      >
+                        Add Bookings
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {challanBookings.map((item, index) => (
+                        <div
+                          key={item.id}
+                          className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                        >
+                          <div>
+                            <div className="font-medium text-gray-900 text-sm">
+                              GR: {item.booking?.grNumber || 'N/A'}
+                            </div>
+                            <div className="text-xs text-gray-600">
+                              {item.packages} packages • {item.weight} kg
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => removeBookingFromChallan(item.bookingId)}
+                            disabled={submitting}
+                            className="text-red-500 hover:text-red-700 transition-colors duration-200 disabled:opacity-50"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Booking Manager Modal */}
+              {showBookingManager && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                  <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+                    {/* Modal Header */}
+                    <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-semibold text-white">Add Bookings to Challan</h3>
+                            <p className="text-purple-100 text-sm">Select bookings to add to this challan</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setShowBookingManager(false);
+                            setSelectedBookings([]);
+                          }}
+                          className="text-white/80 hover:text-white transition-colors"
+                        >
+                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Modal Content */}
+                    <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* Available Bookings */}
+                        <div>
+                          <h4 className="font-semibold text-gray-900 mb-4">Available Bookings</h4>
+                          
+                          {/* Filters */}
+                          <div className="grid grid-cols-2 gap-3 mb-4">
+                            <input
+                              type="text"
+                              placeholder="From Location"
+                              name="fromLocation"
+                              value={filterData.fromLocation}
+                              onChange={handleFilterChange}
+                              className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                            />
+                            <input
+                              type="text"
+                              placeholder="To Location"
+                              name="toLocation"
+                              value={filterData.toLocation}
+                              onChange={handleFilterChange}
+                              className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                            />
+                          </div>
+
+                          <div className="space-y-2 max-h-96 overflow-y-auto">
+                            {filteredBookings.length === 0 ? (
+                              <p className="text-gray-500 text-sm text-center py-4">No available bookings</p>
+                            ) : (
+                              filteredBookings.map((booking) => (
+                                <div
+                                  key={booking.id}
+                                  className={`p-3 border rounded-lg cursor-pointer transition-all duration-200 ${
+                                    selectedBookings.some(b => b.id === booking.id)
+                                      ? 'border-purple-500 bg-purple-50'
+                                      : 'border-gray-200 hover:border-gray-300 bg-white'
+                                  }`}
+                                  onClick={() => toggleBookingSelection(booking)}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center space-x-2">
+                                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                                        selectedBookings.some(b => b.id === booking.id)
+                                          ? 'border-purple-500 bg-purple-500'
+                                          : 'border-gray-300'
+                                      }`}>
+                                        {selectedBookings.some(b => b.id === booking.id) && (
+                                          <svg className="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                          </svg>
+                                        )}
+                                      </div>
+                                      <div>
+                                        <div className="font-medium text-gray-900 text-sm">GR: {booking.grNumber}</div>
+                                        <div className="text-xs text-gray-600">{booking.destinationLocation}</div>
+                                      </div>
+                                    </div>
+                                    <div className="text-right">
+                                      <div className="text-xs font-medium text-gray-900">{booking.packages} packages</div>
+                                      <div className="text-xs text-gray-600">{booking.weight} kg</div>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Selected Bookings */}
+                        <div>
+                          <h4 className="font-semibold text-gray-900 mb-4">
+                            Selected Bookings ({selectedBookings.length})
+                          </h4>
+                          
+                          <div className="space-y-2 max-h-96 overflow-y-auto">
+                            {selectedBookings.length === 0 ? (
+                              <p className="text-gray-500 text-sm text-center py-4">No bookings selected</p>
+                            ) : (
+                              selectedBookings.map((booking) => (
+                                <div
+                                  key={booking.id}
+                                  className="flex items-center justify-between p-3 bg-purple-50 rounded-lg"
+                                >
+                                  <div>
+                                    <div className="font-medium text-gray-900 text-sm">GR: {booking.grNumber}</div>
+                                    <div className="text-xs text-gray-600">{booking.destinationLocation}</div>
+                                  </div>
+                                  <button
+                                    onClick={() => removeSelectedBooking(booking.id)}
+                                    className="text-red-500 hover:text-red-700 transition-colors duration-200"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Modal Footer */}
+                    <div className="bg-gray-50 px-6 py-4 flex justify-end space-x-3">
+                      <button
+                        onClick={() => {
+                          setShowBookingManager(false);
+                          setSelectedBookings([]);
+                        }}
+                        className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={addBookingsToChallan}
+                        disabled={submitting || selectedBookings.length === 0}
+                        className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        {submitting ? 'Adding...' : `Add ${selectedBookings.length} Booking(s)`}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Current Challan Info */}
               <div 
                 className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"

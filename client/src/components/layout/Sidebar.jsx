@@ -9,6 +9,7 @@ const Sidebar = () => {
   const { user, logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [showQuickActions, setShowQuickActions] = useState(false);
+  const [expandedMenus, setExpandedMenus] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
   const [badgeData, setBadgeData] = useState({
     bookings: 0,
@@ -28,6 +29,18 @@ const Sidebar = () => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Auto-expand menu when navigating to submenu item
+  useEffect(() => {
+    navigation.forEach(item => {
+      if (item.submenu && item.submenu.some(sub => location.pathname === sub.href)) {
+        setExpandedMenus(prev => ({
+          ...prev,
+          [item.name]: true
+        }));
+      }
+    });
+  }, [location.pathname]);
 
   // Fetch badge data
   useEffect(() => {
@@ -104,6 +117,45 @@ const Sidebar = () => {
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+        </svg>
+      ),
+      badge: null,
+      submenu: [
+        {
+          name: 'All Customers',
+          href: '/customers',
+          icon: (
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+          )
+        },
+        {
+          name: 'Customer Metrics',
+          href: '/customers/metrics',
+          icon: (
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+          )
+        },
+        {
+          name: 'Customer Details',
+          href: '/customers/details',
+          icon: (
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+          )
+        }
+      ]
+    },
+    {
+      name: 'Eway Bills',
+      href: '/eway-bills/tracker',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
       ),
       badge: null
@@ -271,13 +323,20 @@ const Sidebar = () => {
     item.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const toggleMenuExpansion = (menuName) => {
+    setExpandedMenus(prev => ({
+      ...prev,
+      [menuName]: !prev[menuName]
+    }));
+  };
+
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
   return (
-    <div className={`flex flex-col bg-white shadow-lg border-r border-gray-100 transition-all duration-300 ${
+    <div className={`flex flex-col bg-white shadow-lg border-r border-gray-100 transition-all duration-300 relative z-40 ${
       collapsed ? 'w-16' : 'w-64'
     }`}>
       {/* Header */}
@@ -358,38 +417,104 @@ const Sidebar = () => {
       {/* Navigation */}
       <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
         {filteredNavigation.map((item, index) => {
-          const isActive = location.pathname === item.href;
+          const isActive = location.pathname === item.href || (item.submenu && item.submenu.some(sub => location.pathname === sub.href));
+          const hasSubmenu = item.submenu && item.submenu.length > 0;
+          const isExpanded = expandedMenus[item.name];
+          
           return (
             <div key={item.name} className="relative group" style={{ animationDelay: `${index * 50}ms` }}>
-              <Link
-                to={item.href}
-                className={`
-                  flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 group
-                  ${collapsed ? 'justify-center' : ''}
-                  ${isActive
-                    ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-md'
-                    : 'text-gray-600 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 hover:text-gray-900'
-                  }
-                `}
-                title={collapsed ? item.name : ''}
-              >
-                <span className={`${isActive ? 'text-white' : 'text-gray-400 group-hover:text-blue-500'} transition-colors duration-200`}>
-                  {item.icon}
-                </span>
-                {!collapsed && (
-                  <>
-                    <span className="flex-1 ml-3">{item.name}</span>
-                    {item.badge && (
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                        item.badgeType === 'due' ? 'bg-red-100 text-red-800' :
-                        'bg-blue-100 text-blue-800'
-                      }`}>
-                        {item.badge}
-                      </span>
-                    )}
-                  </>
-                )}
-              </Link>
+              {hasSubmenu ? (
+                <button
+                  onClick={() => toggleMenuExpansion(item.name)}
+                  className={`
+                    w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 group
+                    ${collapsed ? 'justify-center' : ''}
+                    ${isActive
+                      ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-md'
+                      : 'text-gray-600 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 hover:text-gray-900'
+                    }
+                  `}
+                  title={collapsed ? item.name : ''}
+                >
+                  <span className={`${isActive ? 'text-white' : 'text-gray-400 group-hover:text-blue-500'} transition-colors duration-200`}>
+                    {item.icon}
+                  </span>
+                  {!collapsed && (
+                    <>
+                      <span className="flex-1 ml-3 text-left">{item.name}</span>
+                      {item.badge && (
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                          item.badgeType === 'due' ? 'bg-red-100 text-red-800' :
+                          'bg-blue-100 text-blue-800'
+                        }`}>
+                          {item.badge}
+                        </span>
+                      )}
+                      <svg className={`w-4 h-4 ml-2 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </>
+                  )}
+                </button>
+              ) : (
+                <Link
+                  to={item.href}
+                  className={`
+                    flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 group
+                    ${collapsed ? 'justify-center' : ''}
+                    ${isActive
+                      ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-md'
+                      : 'text-gray-600 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 hover:text-gray-900'
+                    }
+                  `}
+                  title={collapsed ? item.name : ''}
+                >
+                  <span className={`${isActive ? 'text-white' : 'text-gray-400 group-hover:text-blue-500'} transition-colors duration-200`}>
+                    {item.icon}
+                  </span>
+                  {!collapsed && (
+                    <>
+                      <span className="flex-1 ml-3">{item.name}</span>
+                      {item.badge && (
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                          item.badgeType === 'due' ? 'bg-red-100 text-red-800' :
+                          'bg-blue-100 text-blue-800'
+                        }`}>
+                          {item.badge}
+                        </span>
+                      )}
+                    </>
+                  )}
+                </Link>
+              )}
+              
+              {/* Submenu */}
+              {!collapsed && hasSubmenu && isExpanded && (
+                <div className="ml-6 mt-1 space-y-1">
+                  {item.submenu.map((subItem, subIndex) => {
+                    const isSubActive = location.pathname === subItem.href;
+                    return (
+                      <Link
+                        key={subItem.name}
+                        to={subItem.href}
+                        className={`
+                          flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200
+                          ${isSubActive
+                            ? 'bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700 font-medium'
+                            : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                          }
+                        `}
+                        style={{ animationDelay: `${(index * 50) + (subIndex * 25)}ms` }}
+                      >
+                        <span className={`${isSubActive ? 'text-blue-500' : 'text-gray-400'} transition-colors duration-200`}>
+                          {subItem.icon}
+                        </span>
+                        <span className="ml-3">{subItem.name}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
               
               {/* Tooltip for collapsed state */}
               {collapsed && (

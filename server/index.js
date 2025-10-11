@@ -29,6 +29,9 @@ const companyRoutes = require('./routes/company');
 const activityRoutes = require('./routes/activities');
 const analyticsRoutes = require('./routes/analytics');
 const predictiveAnalyticsRoutes = require('./routes/predictive-analytics');
+const customerMetricsRoutes = require('./routes/customer-metrics');
+const customerDetailsRoutes = require('./routes/customer-details');
+const ewayBillRoutes = require('./routes/eway-bills');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/transporters', transporterRoutes);
@@ -47,6 +50,9 @@ app.use('/api/company', companyRoutes);
 app.use('/api/activities', activityRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/predictive-analytics', predictiveAnalyticsRoutes);
+app.use('/api/customer-metrics', customerMetricsRoutes);
+app.use('/api/customer-details', customerDetailsRoutes);
+app.use('/api/eway-bills', ewayBillRoutes);
 
 // Test route
 app.get('/api/test', async (req, res) => {

@@ -23,6 +23,11 @@ import ViewBookingPage from './components/bookings/ViewBookingPage';
 import CreateCustomerPage from './components/customers/CreateCustomerPage';
 import EditCustomerPage from './components/customers/EditCustomerPage';
 import ViewCustomerPage from './components/customers/ViewCustomerPage';
+import CustomerMetricsPage from './components/customers/CustomerMetricsPage';
+import CustomerDetailsPage from './components/customers/CustomerDetailsPage';
+
+// Import eway bill components
+import EwayBillTrackerPage from './components/eway-bills/EwayBillTrackerPage';
 
 import CreateTransporterPage from './components/transporters/CreateTransporterPage';
 import EditTransporterPage from './components/transporters/EditTransporterPage';
@@ -102,6 +107,11 @@ function App() {
                 <Route path="/customers/create" element={<CreateCustomerPage />} />
                 <Route path="/customers/:id" element={<ViewCustomerPage />} />
                 <Route path="/customers/:id/edit" element={<EditCustomerPage />} />
+                <Route path="/customers/metrics" element={<CustomerMetricsPage />} />
+                <Route path="/customers/details" element={<CustomerDetailsPage />} />
+                
+                {/* Eway Bills */}
+                <Route path="/eway-bills/tracker" element={<EwayBillTrackerPage />} />
                 
                 {/* Transporters */}
                 <Route path="/transporters" element={<TransportersPage />} />

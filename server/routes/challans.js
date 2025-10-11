@@ -4,6 +4,62 @@ const router = express.Router();
 
 const prisma = new PrismaClient();
 
+// Function to clean up eway bills when GRs are included in challans
+const cleanupChallanedEwayBills = async () => {
+  try {
+    // Find all challans (regardless of status) since any challan means eway bill is handled
+    const allChallans = await prisma.challan.findMany({
+      include: {
+        challanGoods: {
+          include: {
+            booking: {
+              include: {
+                ewayBillRecord: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    let deletedCount = 0;
+    const processedBookings = new Set(); // To avoid duplicate processing
+
+    // For each challan, check if bookings have eway bills and delete them
+    for (const challan of allChallans) {
+      for (const challanGood of challan.challanGoods) {
+        const booking = challanGood.booking;
+        
+        // Skip if we've already processed this booking
+        if (processedBookings.has(booking.id)) {
+          continue;
+        }
+        
+        if (booking.ewayBillRecord) {
+          // Delete the eway bill record
+          await prisma.ewayBill.delete({
+            where: {
+              id: booking.ewayBillRecord.id
+            }
+          });
+          deletedCount++;
+          processedBookings.add(booking.id);
+          console.log(`Deleted eway bill ${booking.ewayBillRecord.ewayBillNumber} for challaned booking ${booking.grNumber} (Challan: ${challan.challanNumber})`);
+        }
+      }
+    }
+
+    if (deletedCount > 0) {
+      console.log(`Cleaned up ${deletedCount} eway bills for challaned bookings`);
+    }
+
+    return { deletedCount };
+  } catch (error) {
+    console.error('Error cleaning up challaned eway bills:', error);
+    throw error;
+  }
+};
+
 // Generate challan number
 const generateChallanNumber = async () => {
   const currentYear = new Date().getFullYear();
@@ -406,6 +462,15 @@ router.post('/', async (req, res) => {
       }
     });
 
+    // Clean up eway bills for challaned bookings
+    try {
+      await cleanupChallanedEwayBills();
+      console.log(`Challan ${finalChallanNumber} created - eway bills cleanup completed`);
+    } catch (cleanupError) {
+      console.error('Error cleaning up eway bills after challan creation:', cleanupError);
+      // Don't fail the challan creation if cleanup fails
+    }
+
     res.status(201).json(challan);
   } catch (error) {
     console.error('Error creating challan:', error);
@@ -660,6 +725,215 @@ router.post('/cleanup-decimals', async (req, res) => {
   } catch (error) {
     console.error('Error during challan decimal cleanup:', error);
     res.status(500).json({ error: 'Failed to cleanup challan decimals' });
+  }
+});
+
+// Add bookings to existing challan
+router.post('/:id/bookings', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { bookingIds } = req.body;
+
+    if (!bookingIds || !Array.isArray(bookingIds) || bookingIds.length === 0) {
+      return res.status(400).json({ error: 'Booking IDs are required' });
+    }
+
+    // Check if challan exists
+    const challan = await prisma.challan.findUnique({
+      where: { id },
+      include: {
+        challanGoods: {
+          select: { bookingId: true }
+        }
+      }
+    });
+
+    if (!challan) {
+      return res.status(404).json({ error: 'Challan not found' });
+    }
+
+    // Get existing booking IDs in this challan
+    const existingBookingIds = challan.challanGoods.map(item => item.bookingId);
+    
+    // Filter out bookings that are already in this challan
+    const newBookingIds = bookingIds.filter(bookingId => !existingBookingIds.includes(bookingId));
+    
+    if (newBookingIds.length === 0) {
+      return res.status(400).json({ error: 'All selected bookings are already in this challan' });
+    }
+
+    // Check if any of the new bookings are already in other challans
+    const conflictingBookings = await prisma.challanGoods.findMany({
+      where: {
+        bookingId: { in: newBookingIds }
+      },
+      include: {
+        challan: {
+          select: { challanNumber: true }
+        }
+      }
+    });
+
+    if (conflictingBookings.length > 0) {
+      const conflictingNumbers = conflictingBookings.map(cb => cb.challan.challanNumber);
+      return res.status(400).json({ 
+        error: `Some bookings are already in other challans: ${conflictingNumbers.join(', ')}` 
+      });
+    }
+
+    // Fetch booking details
+    const bookings = await prisma.booking.findMany({
+      where: { id: { in: newBookingIds } },
+      select: {
+        id: true,
+        packages: {
+          select: { numberOfItems: true }
+        },
+        weightKg: true,
+        totalCharges: true,
+        toLocation: true
+      }
+    });
+
+    if (bookings.length !== newBookingIds.length) {
+      return res.status(400).json({ error: 'Some bookings were not found' });
+    }
+
+    // Get current serial number
+    const currentGoodsCount = await prisma.challanGoods.count({
+      where: { challanId: id }
+    });
+
+    // Prepare new challan goods data
+    const newChallanGoods = bookings.map((booking, index) => {
+      const bookingPackages = booking.packages.reduce((sum, pkg) => sum + (pkg.numberOfItems || 0), 0);
+      
+      return {
+        bookingId: booking.id,
+        serialNumber: currentGoodsCount + index + 1,
+        packages: bookingPackages || 1,
+        weight: Math.round(booking.weightKg || 0),
+        destinationLocation: booking.toLocation || challan.toLocation,
+        charges: Math.round(booking.totalCharges || 0)
+      };
+    });
+
+    // Create new challan goods
+    await prisma.challanGoods.createMany({
+      data: newChallanGoods.map(item => ({
+        ...item,
+        challanId: id
+      }))
+    });
+
+    // Recalculate totals
+    const allGoods = await prisma.challanGoods.findMany({
+      where: { challanId: id }
+    });
+
+    const newTotals = allGoods.reduce((totals, item) => ({
+      packages: totals.packages + item.packages,
+      weight: totals.weight + item.weight,
+      charges: totals.charges + item.charges
+    }), { packages: 0, weight: 0, charges: 0 });
+
+    // Update challan totals
+    await prisma.challan.update({
+      where: { id },
+      data: {
+        totalPackages: newTotals.packages,
+        totalWeight: newTotals.weight,
+        totalCharges: newTotals.charges
+      }
+    });
+
+    // Clean up eway bills for newly challaned bookings
+    try {
+      await cleanupChallanedEwayBills();
+      console.log(`Bookings added to challan ${challan.challanNumber} - eway bills cleanup completed`);
+    } catch (cleanupError) {
+      console.error('Error cleaning up eway bills after adding bookings to challan:', cleanupError);
+      // Don't fail the operation if cleanup fails
+    }
+
+    res.json({ 
+      message: `${newBookingIds.length} booking(s) added successfully`,
+      addedCount: newBookingIds.length
+    });
+
+  } catch (error) {
+    console.error('Error adding bookings to challan:', error);
+    res.status(500).json({ error: 'Failed to add bookings to challan' });
+  }
+});
+
+// Remove booking from challan
+router.delete('/:id/bookings/:bookingId', async (req, res) => {
+  try {
+    const { id, bookingId } = req.params;
+
+    // Check if challan exists
+    const challan = await prisma.challan.findUnique({
+      where: { id }
+    });
+
+    if (!challan) {
+      return res.status(404).json({ error: 'Challan not found' });
+    }
+
+    // Check if booking is in this challan
+    const challanGood = await prisma.challanGoods.findFirst({
+      where: {
+        challanId: id,
+        bookingId: bookingId
+      }
+    });
+
+    if (!challanGood) {
+      return res.status(404).json({ error: 'Booking not found in this challan' });
+    }
+
+    // Remove the booking from challan
+    await prisma.challanGoods.delete({
+      where: { id: challanGood.id }
+    });
+
+    // Recalculate serial numbers for remaining goods
+    const remainingGoods = await prisma.challanGoods.findMany({
+      where: { challanId: id },
+      orderBy: { createdAt: 'asc' }
+    });
+
+    // Update serial numbers
+    for (let i = 0; i < remainingGoods.length; i++) {
+      await prisma.challanGoods.update({
+        where: { id: remainingGoods[i].id },
+        data: { serialNumber: i + 1 }
+      });
+    }
+
+    // Recalculate totals
+    const newTotals = remainingGoods.reduce((totals, item) => ({
+      packages: totals.packages + item.packages,
+      weight: totals.weight + item.weight,
+      charges: totals.charges + item.charges
+    }), { packages: 0, weight: 0, charges: 0 });
+
+    // Update challan totals
+    await prisma.challan.update({
+      where: { id },
+      data: {
+        totalPackages: newTotals.packages,
+        totalWeight: newTotals.weight,
+        totalCharges: newTotals.charges
+      }
+    });
+
+    res.json({ message: 'Booking removed successfully' });
+
+  } catch (error) {
+    console.error('Error removing booking from challan:', error);
+    res.status(500).json({ error: 'Failed to remove booking from challan' });
   }
 });
 

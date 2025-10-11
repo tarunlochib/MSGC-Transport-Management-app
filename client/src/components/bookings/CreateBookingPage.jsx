@@ -58,7 +58,12 @@ const CreateBookingPage = () => {
     godownId: '',
     packages: [],
     invoices: [],
-    totalWeight: ''
+    totalWeight: '',
+    ewayBillDetails: {
+      generatedDate: '',
+      expiryDate: '',
+      billValue: ''
+    }
   });
 
   const steps = [
@@ -193,7 +198,31 @@ const CreateBookingPage = () => {
         })) || []
       };
       
-      await axios.post('/api/bookings', bookingData);
+      const response = await axios.post('/api/bookings', bookingData);
+      const createdBooking = response.data;
+      
+      // Create eway bill record if eway bill details are provided
+      if (createdBooking.ewayBill && 
+          createdBooking.ewayBill.trim() !== '' && 
+          createdBooking.ewayBill.trim().toUpperCase() !== 'NO EWAY' &&
+          formData.ewayBillDetails.generatedDate && 
+          formData.ewayBillDetails.expiryDate) {
+        
+        try {
+          await axios.post('/api/eway-bills', {
+            bookingId: createdBooking.id,
+            ewayBillNumber: createdBooking.ewayBill,
+            generatedDate: formData.ewayBillDetails.generatedDate,
+            expiryDate: formData.ewayBillDetails.expiryDate,
+            billValue: formData.ewayBillDetails.billValue || 0,
+            transporterId: createdBooking.transporterId
+          });
+          console.log('Eway bill record created successfully');
+        } catch (ewayError) {
+          console.error('Error creating eway bill record:', ewayError);
+          // Don't fail the booking creation if eway bill record creation fails
+        }
+      }
       
       // Invalidate dashboard cache to ensure fresh data
       performanceOptimizer.clearCacheEntry('bookings');

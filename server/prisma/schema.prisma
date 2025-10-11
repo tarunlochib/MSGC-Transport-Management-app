@@ -82,6 +82,7 @@ model Transporter {
   challans       Challan[]
   income         Income[]
   godowns        Godown[]
+  ewayBills      EwayBill[]
 
   @@map("transporters")
 }
@@ -187,6 +188,7 @@ model Booking {
   invoices            Invoice[]
   packages            Package[]
   challanGoods        ChallanGoods[]
+  ewayBillRecord      EwayBill?
 
   @@map("bookings")
 }
@@ -309,6 +311,24 @@ model Godown {
   bookings      Booking[]
 
   @@map("godowns")
+}
+
+model EwayBill {
+  id              String      @id @default(cuid())
+  bookingId       String      @unique
+  ewayBillNumber  String
+  generatedDate   DateTime
+  expiryDate      DateTime
+  billValue       Float       @default(0)
+  transporterId   String
+  status          String      @default("Active") // Active, Expired, Extended
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  booking         Booking     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  transporter     Transporter @relation(fields: [transporterId], references: [id])
+
+  @@map("eway_bills")
 }
 
 model UserActivity {
